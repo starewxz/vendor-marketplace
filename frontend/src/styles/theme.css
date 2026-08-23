@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+/*
+ * Cargo Crew brand tokens.
+ * Palette story: cargo-yellow (hazard tape / shipping labels) + crew-blue
+ * (workwear / delivery uniforms) + navy (freight-container ink) + coral
+ * (the stamped "SALE" ink on a cargo tag). Not a generic SaaS palette —
+ * every color is tied to the shipping/marketplace metaphor, not to
+ * Minions-style character colors directly.
+ */
+@theme {
+  --color-cargo-yellow: #ffc629;
+  --color-cargo-yellow-dark: #e8a800;
+  --color-crew-blue: #1e4fd8;
+  --color-crew-blue-dark: #15379e;
+  --color-navy: #10162b;
+  --color-navy-soft: #1c2340;
+  --color-paper: #fffdf7;
+  --color-cream: #fff6de;
+  --color-coral: #ff5a4e;
+  --color-mint: #17a673;
+  --color-line: #e7e1d2;
+
+  --font-display: 'Baloo 2', 'Segoe UI', sans-serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    background-color: var(--color-paper);
+    color: var(--color-navy);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-crew-blue);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/*
+ * Signature brand element: a beveled top-left corner plus a small punched
+ * "hole" dot, like a shipping tag clipped to a crate. Applied to product
+ * cards, promo tiles, and badges so the cargo-tag metaphor is felt
+ * structurally, not just in color choices.
+ */
+@layer components {
+  .cargo-tag {
+    position: relative;
+    clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%, 0 18px);
+  }
+
+  .cargo-tag::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--color-paper);
+    box-shadow: inset 0 1px 1px rgba(16, 22, 43, 0.25);
+    z-index: 10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
