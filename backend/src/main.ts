@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfig } from './common/config/configuration';
@@ -18,6 +19,7 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
 
   app.use(helmet());
+  app.use(cookieParser());
   app.enableCors({
     origin: configService.get('frontendUrl', { infer: true }),
     credentials: true,

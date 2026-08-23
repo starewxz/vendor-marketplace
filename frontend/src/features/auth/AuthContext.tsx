@@ -1,23 +1,81 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthContext, type AuthContextValue } from './auth-context';
-import { clearAccessToken, getAccessToken } from './token-storage';
+import { setAccessToken } from './token-storage';
+import * as authApi from '../../api/auth';
+import type { AuthenticatedUser } from '../../types/user';
 
 /**
- * Foundation only: tracks whether an access token is present so
- * ProtectedRoute has something to check. Stage 2 adds real login/register
- * calls and hydrates `user` from the backend instead of leaving it null.
+ * On mount, attempts silent session restoration via POST /auth/refresh,
+ * which succeeds or fails based solely on the httpOnly refresh cookie —
+ * there's nothing in JS-accessible storage to check first. A 401 here just
+ * means "no session," not an error to surface to the user.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  const logout = useCallback(() => {
-    clearAccessToken();
-    setHasToken(false);
+  useEffect(() => {
+    let cancelled = false;
+
+    authApi
+      .refresh()
+      .then((res) => {
+        if (cancelled) return;
+        setAccessToken(res.accessToken);
+        setUser(res.user);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAccessToken(null);
+        setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsInitializing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const login = useCallback(async (input: authApi.LoginInput) => {
+    const res = await authApi.login(input);
+    setAccessToken(res.accessToken);
+    setUser(res.user);
+  }, []);
+
+  const register = useCallback(async (input: authApi.RegisterInput) => {
+    const res = await authApi.register(input);
+    setAccessToken(res.accessToken);
+    setUser(res.user);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      setAccessToken(null);
+      setUser(null);
+    }
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const res = await authApi.refresh();
+    setAccessToken(res.accessToken);
+    setUser(res.user);
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user: null, isAuthenticated: hasToken, logout }),
-    [hasToken, logout],
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      isInitializing,
+      login,
+      register,
+      logout,
+      refreshSession,
+    }),
+    [user, isInitializing, login, register, logout, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,14 +1,33 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, type Location } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { GoogleLoginButton } from '../../components/ui/GoogleLoginButton';
+import { useAuth } from '../../features/auth/useAuth';
+import { getApiErrorMessage } from '../../api/error';
 
 export function LoginPage() {
-  const [notice, setNotice] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setNotice(true);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await login({ email, password });
+      const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/account';
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Invalid email or password.'));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -18,17 +37,37 @@ export function LoginPage() {
         <p className="text-sm text-navy/60">Log in to track orders and manage your stall.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input id="email" type="email" label="Email" placeholder="you@example.com" required />
-        <Input id="password" type="password" label="Password" placeholder="••••••••" required />
-        <Button type="submit">Log in</Button>
-      </form>
+      <GoogleLoginButton />
+      <div className="flex items-center gap-3 text-xs font-medium text-navy/40">
+        <div className="h-px flex-1 bg-line" />
+        or
+        <div className="h-px flex-1 bg-line" />
+      </div>
 
-      {notice && (
-        <p className="rounded-xl bg-cream px-3 py-2 text-sm text-navy/70">
-          Login isn't wired up yet — email/password and Google OAuth land in Stage 2. This form is the real UI shell.
-        </p>
-      )}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Input
+          id="email"
+          type="email"
+          label="Email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Input
+          id="password"
+          type="password"
+          label="Password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {error && <p className="text-sm text-coral">{error}</p>}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Logging in…' : 'Log in'}
+        </Button>
+      </form>
 
       <p className="text-center text-sm text-navy/60">
         New to Cargo Crew?{' '}

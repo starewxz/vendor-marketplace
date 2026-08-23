@@ -6,4 +6,11 @@ export interface AuthenticatedUser {
   firstName: string;
   lastName: string;
   role: UserRole;
+  isEmailVerified: boolean;
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  user: AuthenticatedUser;
 }

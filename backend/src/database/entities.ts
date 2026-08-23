@@ -1,5 +1,6 @@
 import { User } from '../modules/users/entities/user.entity';
 import { RefreshToken } from '../modules/auth/entities/refresh-token.entity';
+import { AuthIdentity } from '../modules/auth/entities/auth-identity.entity';
 import { SellerProfile } from '../modules/sellers/entities/seller-profile.entity';
 import { SellerApplication } from '../modules/sellers/entities/seller-application.entity';
 import { Category } from '../modules/categories/entities/category.entity';
@@ -26,6 +27,7 @@ import { ProcessedEvent } from '../modules/outbox/entities/processed-event.entit
 export const ALL_ENTITIES = [
   User,
   RefreshToken,
+  AuthIdentity,
   SellerProfile,
   SellerApplication,
   Category,

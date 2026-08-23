@@ -10,8 +10,10 @@ import { CatalogPage } from '../pages/customer/CatalogPage';
 import { ProductDetailPage } from '../pages/customer/ProductDetailPage';
 import { CartPage } from '../pages/customer/CartPage';
 import { AccountPage } from '../pages/customer/AccountPage';
+import { SellerApplicationPage } from '../pages/customer/SellerApplicationPage';
 import { LoginPage } from '../pages/customer/LoginPage';
 import { RegisterPage } from '../pages/customer/RegisterPage';
+import { AuthCallbackPage } from '../pages/customer/AuthCallbackPage';
 
 import { SellerOverviewPage } from '../pages/seller/SellerOverviewPage';
 import { SellerProductsPage } from '../pages/seller/SellerProductsPage';
@@ -24,14 +26,9 @@ import { AdminCategoriesPage } from '../pages/admin/AdminCategoriesPage';
 import { AdminDisputesPage } from '../pages/admin/AdminDisputesPage';
 import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
 
+import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 
-/**
- * /seller and /admin aren't wrapped in ProtectedRoute yet: doing so would
- * make their shells unreachable in this stage since no real login exists to
- * satisfy the guard. /account demonstrates the guard mechanism end-to-end;
- * role-based guarding of /seller and /admin lands with real auth in Stage 2.
- */
 export const router = createBrowserRouter([
   {
     element: <CustomerLayout />,
@@ -48,6 +45,15 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: '/account/seller',
+        element: (
+          <ProtectedRoute>
+            <SellerApplicationPage />
+          </ProtectedRoute>
+        ),
+      },
+      { path: '/unauthorized', element: <UnauthorizedPage /> },
     ],
   },
   {
@@ -55,11 +61,16 @@ export const router = createBrowserRouter([
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
+      { path: '/auth/callback', element: <AuthCallbackPage /> },
     ],
   },
   {
     path: '/seller',
-    element: <SellerLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={['SELLER']}>
+        <SellerLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <SellerOverviewPage /> },
       { path: 'products', element: <SellerProductsPage /> },
@@ -69,7 +80,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={['ADMIN']}>
+        <AdminLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <AdminOverviewPage /> },
       { path: 'sellers', element: <AdminSellersPage /> },

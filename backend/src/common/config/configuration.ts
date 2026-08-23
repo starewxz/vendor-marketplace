@@ -24,6 +24,11 @@ export interface AppConfig {
     maxRequests: number;
   };
   logLevel: string;
+  google: {
+    clientId: string | null;
+    clientSecret: string | null;
+    callbackUrl: string | null;
+  };
 }
 
 export default (): AppConfig => ({
@@ -54,4 +59,9 @@ export default (): AppConfig => ({
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? '100', 10),
   },
   logLevel: process.env.LOG_LEVEL ?? 'debug',
+  google: {
+    clientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? null,
+    clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? null,
+    callbackUrl: process.env.GOOGLE_OAUTH_CALLBACK_URL ?? null,
+  },
 });

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/useAuth';
+import { Spinner } from '../components/ui/Spinner';
 import type { UserRole } from '../types/user';
 
 interface ProtectedRouteProps {
@@ -9,20 +10,32 @@ interface ProtectedRouteProps {
 }
 
 /**
- * Redirects to /login when no token is present. Role checks are best-effort
- * until Stage 2 hydrates the real user — treated as a UX nicety here, not a
- * security boundary (the backend is the actual gate).
+ * Waits for the initial session-restoration attempt (see AuthProvider)
+ * before deciding to redirect — otherwise a valid session looks logged-out
+ * for the split second before /auth/refresh resolves on page load.
+ *
+ * This is UX only. The backend's JwtAuthGuard/RolesGuard are the actual
+ * security boundary — a user who bypasses this component still can't call
+ * a protected API without a valid token and the right role.
  */
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isInitializing, user } = useAuth();
   const location = useLocation();
+
+  if (isInitializing) {
+    return (
+      <div className="flex justify-center py-20">
+        <Spinner label="Loading session…" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;

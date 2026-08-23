@@ -67,6 +67,20 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   LOG_LEVEL: string = 'debug';
+
+  // Optional: Google OAuth is disabled cleanly when these are absent (see
+  // GoogleAuthConfigService) rather than failing startup.
+  @IsString()
+  @IsOptional()
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_OAUTH_CALLBACK_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

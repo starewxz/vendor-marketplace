@@ -1,14 +1,34 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { GoogleLoginButton } from '../../components/ui/GoogleLoginButton';
+import { useAuth } from '../../features/auth/useAuth';
+import { getApiErrorMessage } from '../../api/error';
 
 export function RegisterPage() {
-  const [notice, setNotice] = useState(false);
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent) {
+  function update(field: keyof typeof form) {
+    return (event: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [field]: event.target.value }));
+  }
+
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setNotice(true);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await register(form);
+      navigate('/account', { replace: true });
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not create your account.'));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -18,21 +38,42 @@ export function RegisterPage() {
         <p className="text-sm text-navy/60">Create an account to shop or start selling.</p>
       </div>
 
+      <GoogleLoginButton />
+      <div className="flex items-center gap-3 text-xs font-medium text-navy/40">
+        <div className="h-px flex-1 bg-line" />
+        or
+        <div className="h-px flex-1 bg-line" />
+      </div>
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
-          <Input id="firstName" label="First name" required />
-          <Input id="lastName" label="Last name" required />
+          <Input id="firstName" label="First name" value={form.firstName} onChange={update('firstName')} required />
+          <Input id="lastName" label="Last name" value={form.lastName} onChange={update('lastName')} required />
         </div>
-        <Input id="email" type="email" label="Email" placeholder="you@example.com" required />
-        <Input id="password" type="password" label="Password" placeholder="••••••••" required />
-        <Button type="submit">Create account</Button>
+        <Input
+          id="email"
+          type="email"
+          label="Email"
+          placeholder="you@example.com"
+          value={form.email}
+          onChange={update('email')}
+          required
+        />
+        <Input
+          id="password"
+          type="password"
+          label="Password"
+          placeholder="At least 8 characters, upper + lower + number"
+          value={form.password}
+          onChange={update('password')}
+          minLength={8}
+          required
+        />
+        {error && <p className="text-sm text-coral">{error}</p>}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Creating account…' : 'Create account'}
+        </Button>
       </form>
-
-      {notice && (
-        <p className="rounded-xl bg-cream px-3 py-2 text-sm text-navy/70">
-          Registration isn't wired up yet — this form is the real UI shell, backend logic lands in Stage 2.
-        </p>
-      )}
 
       <p className="text-center text-sm text-navy/60">
         Already have an account?{' '}

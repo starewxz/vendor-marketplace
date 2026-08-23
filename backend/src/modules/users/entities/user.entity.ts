@@ -18,9 +18,6 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar' })
   lastName: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  googleId: string | null;
-
   @Column({ type: 'enum', enum: UserRole, default: UserRole.CUSTOMER })
   role: UserRole;
 
