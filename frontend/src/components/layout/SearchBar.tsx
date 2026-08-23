@@ -7,7 +7,7 @@ export function SearchBar() {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    navigate(query.trim() ? `/catalog?q=${encodeURIComponent(query.trim())}` : '/catalog');
+    navigate(query.trim() ? `/catalog?search=${encodeURIComponent(query.trim())}` : '/catalog');
   }
 
   return (

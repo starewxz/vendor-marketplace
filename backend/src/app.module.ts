@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import configuration, { AppConfig } from './common/config/configuration';
 import { validateEnv } from './common/config/env.validation';
 import { LoggerModule } from './common/logger/logger.module';
@@ -29,6 +30,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
 import { OutboxModule } from './modules/outbox/outbox.module';
+import { CacheModule } from './cache/cache.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -40,6 +42,7 @@ import { RolesGuard } from './common/guards/roles.guard';
       validate: validateEnv,
     }),
     LoggerModule,
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AppConfig, true>) => ({
@@ -54,6 +57,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     }),
     DatabaseModule,
     RedisModule,
+    CacheModule,
     QueueModule,
     SearchModule,
     WebsocketModule,

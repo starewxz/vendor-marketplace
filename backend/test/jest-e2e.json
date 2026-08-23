@@ -6,5 +6,6 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": ["node_modules/(?!(meilisearch)/)"]
+  "transformIgnorePatterns": ["node_modules/(?!(meilisearch)/)"],
+  "testTimeout": 20000
 }

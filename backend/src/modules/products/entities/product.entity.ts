@@ -4,7 +4,15 @@ import { SellerProfile } from '../../sellers/entities/seller-profile.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { ProductType } from './product-type.enum';
 
+/**
+ * `price`/`stockQuantity`/`createdAt` are indexed for the Postgres fallback
+ * path (see CatalogService) used when Meilisearch is unavailable — the
+ * primary catalog read path is the search index, not this table directly.
+ */
 @Entity('products')
+@Index(['price'])
+@Index(['stockQuantity'])
+@Index(['createdAt'])
 export class Product extends BaseEntity {
   @Index()
   @Column({ type: 'uuid' })
@@ -46,4 +54,13 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'boolean', default: false })
   isPublished: boolean;
+
+  // Populated once the reviews module (Stage 5+) writes real reviews;
+  // denormalized here so catalog reads/search documents don't need a
+  // per-product aggregate query.
+  @Column({ type: 'numeric', precision: 3, scale: 2, default: 0 })
+  ratingAverage: string;
+
+  @Column({ type: 'integer', default: 0 })
+  ratingCount: number;
 }

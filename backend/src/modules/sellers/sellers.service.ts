@@ -40,6 +40,22 @@ export class SellersService {
     return profile;
   }
 
+  /**
+   * Resolves the SellerProfile for the authenticated user (JWT carries a
+   * userId, not a sellerProfileId). A user with role SELLER always has a
+   * profile — it's created atomically with role approval — so a miss here
+   * indicates a data inconsistency, not a normal "not a seller yet" case.
+   */
+  async findProfileByUserId(userId: string): Promise<SellerProfile> {
+    const profile = await this.sellerProfilesRepository.findOne({
+      where: { userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(`No seller profile found for user ${userId}`);
+    }
+    return profile;
+  }
+
   findApplicationsByUserId(userId: string): Promise<SellerApplication[]> {
     return this.sellerApplicationsRepository.find({
       where: { userId },

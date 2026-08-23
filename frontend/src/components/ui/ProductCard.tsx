@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
-import type { Product } from '../../types/product';
+import type { CatalogProduct } from '../../types/product';
 import { Card } from './Card';
 import { Badge } from './Badge';
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product }: { product: CatalogProduct }) {
   return (
     <Link to={`/product/${product.id}`}>
       <Card notch className="flex h-full flex-col overflow-hidden transition-shadow hover:shadow-lg">
@@ -19,10 +19,14 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
         <div className="flex flex-1 flex-col gap-1.5 p-3">
-          {product.type === 'AUCTION' && <Badge tone="coral">Auction</Badge>}
+          <div className="flex items-center gap-1.5">
+            {product.productType === 'AUCTION' && <Badge tone="coral">Auction</Badge>}
+            {!product.available && <Badge tone="neutral">Sold out</Badge>}
+          </div>
           <h3 className="line-clamp-2 text-sm font-medium text-navy">{product.name}</h3>
+          <span className="text-xs text-navy/50">{product.sellerName}</span>
           <span className="mt-auto font-mono text-base font-semibold text-navy">
-            {product.price ? `$${product.price}` : '—'}
+            {product.price !== null ? `$${product.price.toFixed(2)}` : '—'}
           </span>
         </div>
       </Card>

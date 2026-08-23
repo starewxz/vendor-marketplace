@@ -1,9 +1,9 @@
 import { PromoTiles } from '../../components/layout/PromoTiles';
 import { ProductGrid } from '../../components/ui/ProductGrid';
-import { useProducts } from '../../features/catalog/useProducts';
+import { useCatalog } from '../../features/catalog/useCatalog';
 
 export function HomePage() {
-  const { data: products, isLoading, isError } = useProducts();
+  const { data, isLoading, isError } = useCatalog({ page: 1, pageSize: 10, sort: 'createdAt:desc' });
 
   return (
     <div className="flex flex-col gap-10">
@@ -13,7 +13,7 @@ export function HomePage() {
         <div className="flex items-baseline justify-between">
           <h2 className="font-display text-xl font-semibold text-navy">Fresh off the truck</h2>
         </div>
-        <ProductGrid products={products} isLoading={isLoading} isError={isError} />
+        <ProductGrid products={data?.data} isLoading={isLoading} isError={isError} />
       </section>
     </div>
   );

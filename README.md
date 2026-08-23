@@ -10,6 +10,7 @@ Architecture** — a clean, production-minded skeleton that later stages build f
 - [Architecture](#architecture)
 - [Why these choices](#why-these-choices)
 - [Consistency model](#consistency-model)
+- [Catalog & search (Stage 3)](#catalog--search-stage-3)
 - [Project structure](#project-structure)
 - [Development setup](#development-setup)
 - [Docker setup](#docker-setup)
@@ -125,9 +126,102 @@ flowchart TB
   silently fails (or vice versa) — the outbox row is the single source of truth for "this needs to be propagated,"
   and consumers can be retried safely.
 
-Stage 1 puts the tables, the `OutboxService.record()` helper, and the consumer-side services in place. The publisher
-worker and the individual `@Processor` classes that actually move events from Postgres to BullMQ to Meilisearch are
-implemented in later stages, once there's real domain data flowing through them.
+The full pipeline (outbox row → publisher poll → BullMQ job → search-sync consumer → Meilisearch) is implemented as
+of Stage 3, described in detail below.
+
+## Catalog & search (Stage 3)
+
+### Product ownership
+
+A `Product` belongs to exactly one `SellerProfile`. Every seller-scoped endpoint (`/seller/products/*`) resolves the
+caller's `sellerProfileId` from the authenticated JWT (`@CurrentUser()` → `SellersService.findProfileByUserId()`) —
+never from a client-supplied `sellerId`. Ownership is enforced by scoping the lookup query itself to
+`(id, sellerProfileId)` rather than fetching by id and checking ownership afterwards: a product that exists but
+belongs to another seller is indistinguishable from one that doesn't exist, so an id another seller can guess never
+confirms it exists (404, not 403 — see `ProductsService.findOwnedById`).
+
+### Why direct dual-writes are avoided
+
+`ProductsService`/`CategoriesService` never call Meilisearch. A write path that did `await postgres.save(product);
+await meilisearch.index(doc);` has no atomicity — if the process crashes, times out, or Meilisearch is briefly
+down between those two calls, Postgres and the search index permanently disagree, with nothing to reconcile them.
+Instead, every mutation writes an `OutboxEvent` **in the same transaction** as the domain change:
+
+```
+BEGIN
+  UPDATE products SET ...
+  INSERT INTO outbox_events (eventType: 'PRODUCT_UPDATED', aggregateId: product.id, ...)
+COMMIT
+```
+
+Either both rows commit or neither does — there's no window where the product changed but nothing recorded that
+the search index needs to catch up.
+
+### Outbox → BullMQ → Meilisearch
+
+- **`OutboxPublisherService`** (`modules/outbox/outbox-publisher.service.ts`) polls every 2s for `PENDING` rows using
+  `SELECT ... FOR UPDATE SKIP LOCKED` (safe if multiple app instances poll concurrently), enqueues each onto the
+  `search-sync` BullMQ queue with `jobId = outboxEvent.id` (so a retried publish can't double-enqueue), and only
+  flips the row to `PUBLISHED` after the enqueue succeeds. If BullMQ/Redis is briefly down, the row just stays
+  `PENDING` and is retried on the next tick — the original product transaction already committed and is unaffected.
+- **`SearchSyncProcessor`** (`modules/search-sync/search-sync.processor.ts`) consumes those jobs. It checks
+  `ProcessedEvent` first (idempotency: a duplicate delivery is a no-op) and, on `PRODUCT_CREATED`/`PRODUCT_UPDATED`,
+  **re-fetches the current product from Postgres** rather than trusting the event payload as a data snapshot — the
+  payload only carries `{ productId }`. This makes redelivery and out-of-order processing self-healing: whichever
+  event runs last always writes the *current* truth, not a stale delta. `CATEGORY_UPDATED` re-syncs every product in
+  that category (category name is denormalized into each product's search document). Sync failures are re-thrown so
+  BullMQ's configured retry/backoff applies; success is only recorded (`ProcessedEvent` insert) after the Meilisearch
+  write is confirmed — see "Meilisearch task model" below.
+
+### Meilisearch task model
+
+Meilisearch's write endpoints return as soon as a task is *enqueued*, not once it's applied — `addDocuments()` can
+resolve successfully even though the underlying task later fails (this bit us during development: a product
+document with `id`, `sellerId`, and `categoryId` all ending in "id" made Meilisearch's primary-key auto-detection
+ambiguous, and the failure was only visible in the task log, not the API response). `MeilisearchService` now
+declares the primary key explicitly and calls `.waitTask()` to confirm each write actually succeeded before
+resolving, turning a would-be silent failure into a normal thrown error that the retry/idempotency logic already
+handles correctly.
+
+### Search document & facets
+
+The `products` Meilisearch index holds a flattened, public-safe read model (`ProductSearchDocument`) — seller name
+and category name are denormalized in, but nothing seller-private (no email, no commission rate). Configured via
+`PRODUCTS_INDEX_SETTINGS`:
+
+- **Searchable**: `name`, `description`, `sellerName`, `categoryName`
+- **Filterable**: `categoryId`, `sellerId`, `price`, `rating`, `available`, `productType`
+- **Sortable**: `price`, `createdAt`, `rating`
+
+`GET /products` requests facet distributions for `categoryId`/`sellerId`/`available`/`productType` alongside the
+search results in a single call, which is what the catalog page's filter sidebar renders — no extra per-facet
+requests.
+
+### Graceful degradation
+
+`ProductsService.searchCatalog()` tries Meilisearch first; if it throws (down, timed out — `MeilisearchService`
+enforces a 2s client-side timeout so a hung connection can't hang the request), it falls back to
+`PostgresCatalogFallbackService`, which serves the same filters/sort/pagination directly from Postgres (ILIKE name
+search backed by a `pg_trgm` GIN index — see migrations) at reduced relevance and with facets omitted. The catalog
+never 500s just because the search engine is unavailable; the fallback is logged so persistent outages aren't
+silent.
+
+### Redis caching
+
+`CatalogCacheService` caches public, non-personalized reads only — search results (5s TTL), product details (60s),
+and the category list (5m). Seller-scoped endpoints (`/seller/products/*`) are never cached. Search results use a
+version counter (`catalog:search:version`) rather than tracking individual query keys: any product/category
+mutation increments the counter, which changes every subsequent cache key and makes prior entries unreachable
+(they simply expire) — cheaper and more reliable than enumerating and deleting cached query shapes. Product/category
+detail caches are invalidated by key on every mutation to that specific row. All cache operations degrade to a
+cache-miss (not an error) if Redis is unavailable.
+
+### Reindexing
+
+`npm run search:reindex` (`npm run search:reindex:prod` against a built image) rebuilds the `products` index from
+Postgres from scratch: configures index settings, then upserts every published product in batches. Idempotent —
+safe to rerun on a fresh environment, in CI, or to recover after search-sync has been down. Not exposed as an HTTP
+endpoint (destructive/expensive operations like this stay CLI-only).
 
 ## Project structure
 
@@ -265,6 +359,24 @@ run repeatedly — it promotes an existing user or creates one, never duplicates
 - 34 backend unit tests + 21 e2e tests (register → login → RBAC → apply → approve/reject → refresh
   rotation/reuse/logout) all passing against live Postgres/Redis/Meilisearch.
 
-**Explicitly out of scope still** (see module/service comments for where each plugs in): product CRUD, catalog →
-Meilisearch sync, cart/checkout logic, commission calculation, seller-order fulfillment, refunds, live bidding, full
-WebSocket event rooms, review/dispute workflows, analytics.
+**Done (Stage 3):**
+
+- Seller-owned product CRUD (`/seller/products/*`) — ownership enforced by query scoping (404, not 403, on
+  cross-seller access), deterministic slug generation with a DB-unique-constraint retry loop for real races, admin
+  category CRUD with a 409 on deleting a category that still has products.
+- Real transactional-outbox → BullMQ → Meilisearch search sync, described in detail above — no direct dual-writes.
+- Public catalog (`GET /products`) backed by Meilisearch with facets, filters, sort, and pagination, plus an
+  automatic Postgres fallback (with a `pg_trgm`-indexed ILIKE search) if Meilisearch is unavailable.
+- Redis caching for public catalog reads (search results, product detail, category list) with mutation-driven
+  invalidation; never applied to seller-scoped reads.
+- `npm run search:reindex` for rebuilding the index from Postgres from a clean state.
+- Frontend: real catalog page (search/facets/price range/sort/pagination, all synced to the URL), seller product
+  management UI, admin category management UI, an enhanced product detail page.
+- 63 backend unit tests + 38 e2e tests (including IDOR checks, outbox→search-sync eventual consistency with actual
+  wait-for-indexing assertions, idempotent redelivery, category-rename propagation, and cache-invalidation
+  freshness) all passing against live Postgres/Redis/Meilisearch. CI now runs a dedicated e2e job with real service
+  containers.
+
+**Explicitly out of scope still** (see module/service comments for where each plugs in): cart/checkout logic,
+commission calculation, seller-order fulfillment, refunds, live bidding, full WebSocket event rooms, review/dispute
+workflows, analytics.

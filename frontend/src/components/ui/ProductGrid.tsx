@@ -1,10 +1,10 @@
-import type { Product } from '../../types/product';
+import type { CatalogProduct } from '../../types/product';
 import { ProductCard } from './ProductCard';
 import { Spinner } from './Spinner';
 import { EmptyState } from './EmptyState';
 
 interface ProductGridProps {
-  products: Product[] | undefined;
+  products: CatalogProduct[] | undefined;
   isLoading: boolean;
   isError: boolean;
 }
@@ -31,7 +31,7 @@ export function ProductGrid({ products, isLoading, isError }: ProductGridProps) 
     return (
       <EmptyState
         title="No crates unpacked yet"
-        description="Nothing has been published to the catalog so far — this grid is wired up to the real products API and will fill in as soon as sellers list items."
+        description="Nothing matched — try a different search or clear your filters."
       />
     );
   }

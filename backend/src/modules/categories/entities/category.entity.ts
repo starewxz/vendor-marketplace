@@ -3,6 +3,7 @@ import { BaseEntity } from '../../../database/base.entity';
 
 @Entity('categories')
 export class Category extends BaseEntity {
+  @Index({ unique: true })
   @Column({ type: 'varchar' })
   name: string;
 

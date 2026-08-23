@@ -25,6 +25,66 @@ jobs:
       - run: npm run build
       - run: npm run test
 
+  backend-e2e:
+    name: Backend (e2e, with Postgres/Redis/Meilisearch)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: marketplace
+          POSTGRES_DB: marketplace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.10
+        env:
+          MEILI_MASTER_KEY: masterKeyChangeMe
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "wget --spider -q http://127.0.0.1:7700/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://marketplace:marketplace@localhost:5432/marketplace
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: masterKeyChangeMe
+      JWT_ACCESS_SECRET: ci_access_secret
+      JWT_REFRESH_SECRET: ci_refresh_secret
+      FRONTEND_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run migration:run
+      - run: npm run test:e2e -- --runInBand
+
   frontend:
     name: Frontend (lint, typecheck, build)
     runs-on: ubuntu-latest

@@ -6,3 +6,10 @@ export interface Category {
   sortOrder: number;
   isActive: boolean;
 }
+
+export interface CategoryFormInput {
+  name: string;
+  iconUrl?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}

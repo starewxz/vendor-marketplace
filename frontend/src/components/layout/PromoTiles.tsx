@@ -3,21 +3,21 @@ import { Card } from '../ui/Card';
 
 const TILES = [
   {
-    to: '/catalog?category=Deals',
+    to: '/catalog?sort=price:asc',
     eyebrow: 'This week',
     heading: 'Deals worth unloading the truck for',
     tone: 'bg-navy text-paper',
     accent: 'text-cargo-yellow',
   },
   {
-    to: '/seller',
+    to: '/catalog?type=AUCTION',
     eyebrow: 'Auctions',
     heading: 'Bid live, win it before the gate closes',
     tone: 'bg-coral text-paper',
     accent: 'text-navy',
   },
   {
-    to: '/seller',
+    to: '/account/seller',
     eyebrow: 'New here?',
     heading: 'Set up a stall and start shipping',
     tone: 'bg-crew-blue text-paper',
