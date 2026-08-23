@@ -210,8 +210,17 @@ keeps schema changes deliberate rather than something that silently happens on e
 
 ## Environment variables
 
-See `.env.example` for the full list with comments. No real secrets are committed; JWT secrets and Google OAuth
-credentials are placeholders until Stage 2 implements authentication.
+See `.env.example` for the full list with comments. No real secrets are committed.
+
+**Google OAuth** is optional in every environment. Leave `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` blank
+and `GET /auth/google` responds with a clear 400 instead of the backend failing to start — email/password auth is
+unaffected. To enable it: create an OAuth 2.0 Client ID (Google Cloud Console → APIs & Services → Credentials), set
+the authorized redirect URI to `GOOGLE_OAUTH_CALLBACK_URL` (`http://localhost:3000/api/auth/google/callback` by
+default), and fill in the three `GOOGLE_OAUTH_*` vars.
+
+**Admin bootstrap**: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_NAME`, then run `npm run seed:admin` (or
+`npm run seed:admin:prod` / `docker compose exec backend npm run seed:admin:prod` against a built image). Safe to
+run repeatedly — it promotes an existing user or creates one, never duplicates.
 
 ## Current implementation status
 
@@ -236,7 +245,26 @@ credentials are placeholders until Stage 2 implements authentication.
   across restarts.
 - CI (lint/build/test for both apps).
 
-**Explicitly out of scope for this stage** (see the module/service TODO-style comments in code for where each one
-plugs in): real authentication (password + Google OAuth), seller application approval logic, product CRUD, catalog
-→ Meilisearch sync, cart/checkout logic, commission calculation, seller-order fulfillment, refunds, live bidding,
-full WebSocket event rooms, review/dispute workflows, analytics.
+**Done (Stage 2):**
+
+- Email/password auth: `POST /auth/register|login|refresh|logout`, bcrypt password hashing, JWT access tokens
+  (in-memory on the client) + opaque rotating refresh tokens (sha256-hashed in Postgres, httpOnly cookie, reuse
+  detection revokes the whole session).
+- RBAC: global `JwtAuthGuard` + `RolesGuard` (fail-closed — every route requires auth unless `@Public()`), `@Roles()`
+  and `@CurrentUser()` decorators. Identity for seller applications always comes from the authenticated principal,
+  never a client-supplied id.
+- Seller application lifecycle: `POST /seller-applications`, `GET /seller-applications/me`, and admin moderation
+  (`GET/PATCH /admin/seller-applications/...`) — transactional approve/reject with a DB partial unique index
+  preventing more than one PENDING application per user, and reviewer/timestamp/outbox events recorded on decision.
+- Google OAuth (`AuthIdentity` table, `LOCAL`/`GOOGLE` providers) with safe account linking by verified email; cleanly
+  disabled (400, not a crash) when `GOOGLE_OAUTH_CLIENT_ID/SECRET` aren't set.
+- `npm run seed:admin` — idempotent admin bootstrap from `ADMIN_EMAIL/PASSWORD/NAME`.
+- Frontend wired to the real API: in-memory access token, silent session restoration via `/auth/refresh` on load,
+  single-flight refresh-on-401 with no retry loop, role-gated `/seller/*` and `/admin/*` routes, a real seller
+  application flow at `/account/seller`, and real admin moderation UI at `/admin/sellers`.
+- 34 backend unit tests + 21 e2e tests (register → login → RBAC → apply → approve/reject → refresh
+  rotation/reuse/logout) all passing against live Postgres/Redis/Meilisearch.
+
+**Explicitly out of scope still** (see module/service comments for where each plugs in): product CRUD, catalog →
+Meilisearch sync, cart/checkout logic, commission calculation, seller-order fulfillment, refunds, live bidding, full
+WebSocket event rooms, review/dispute workflows, analytics.
