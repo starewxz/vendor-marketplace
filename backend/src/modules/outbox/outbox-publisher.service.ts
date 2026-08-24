@@ -59,6 +59,7 @@ export class OutboxPublisherService {
       SellerOrder: [this.sellerOrderProcessingQueue, this.realtimeQueue],
       Order: [this.notificationsQueue, this.realtimeQueue],
       Refund: [this.notificationsQueue, this.realtimeQueue],
+      Dispute: [this.notificationsQueue, this.realtimeQueue],
       Auction: [this.notificationsQueue, this.realtimeQueue],
       SellerApplication: [this.notificationsQueue],
     };

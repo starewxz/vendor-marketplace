@@ -26,6 +26,7 @@ describe('RealtimeProcessor routing', () => {
   const auctions = { findOne: jest.fn() };
   const bids = { count: jest.fn() };
   const sellerOrders = { findOne: jest.fn() };
+  const disputes = { findOne: jest.fn() };
   const realtime = { emitToRooms: jest.fn() };
   const processor = new RealtimeProcessor(
     processed as never,
@@ -34,9 +35,34 @@ describe('RealtimeProcessor routing', () => {
     bids as never,
     sellerOrders as never,
     realtime as never,
+    disputes as never,
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('routes a dispute only to its owning customer and seller private rooms', async () => {
+    disputes.findOne.mockResolvedValue({
+      id: 'dispute-1',
+      customerId: 'customer-1',
+      sellerProfileId: 'seller-1',
+      sellerOrderId: 'seller-order-1',
+      status: 'OPEN',
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    await processor.process(
+      job({
+        aggregateType: 'Dispute',
+        aggregateId: 'dispute-1',
+        eventType: 'DISPUTE_OPENED',
+      }),
+    );
+    expect(realtime.emitToRooms).toHaveBeenCalledWith(
+      ['user:customer-1', 'seller:seller-1'],
+      'dispute.opened',
+      expect.objectContaining({ disputeId: 'dispute-1', status: 'OPEN' }),
+      expect.any(Object),
+    );
+  });
 
   it('routes current committed stock to only the product room', async () => {
     products.findOne.mockResolvedValue({

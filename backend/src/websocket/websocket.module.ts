@@ -11,6 +11,7 @@ import { Bid } from '../modules/bidding/entities/bid.entity';
 import { Order } from '../modules/orders/entities/order.entity';
 import { SellerOrder } from '../modules/orders/entities/seller-order.entity';
 import { ProcessedEvent } from '../modules/outbox/entities/processed-event.entity';
+import { Dispute } from '../modules/disputes/entities/dispute.entity';
 import { QUEUE_NAMES } from '../queue/queue.constants';
 import { RealtimeService } from './realtime.service';
 import { RealtimeSubscriptionService } from './realtime-subscription.service';
@@ -26,6 +27,7 @@ import { RealtimeProcessor } from './realtime.processor';
       Order,
       SellerOrder,
       ProcessedEvent,
+      Dispute,
     ]),
     BullModule.registerQueue({ name: QUEUE_NAMES.REALTIME }),
     AuthModule,

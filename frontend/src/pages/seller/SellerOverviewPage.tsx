@@ -1,22 +1,7 @@
-import { StatCard } from '../../components/ui/StatCard';
-import { NotYetAvailable } from '../../components/ui/NotYetAvailable';
-
+import { useSellerAnalytics } from '../../features/analytics/hooks';
+import { Card } from '../../components/ui/Card'; import { EmptyState } from '../../components/ui/EmptyState'; import { Spinner } from '../../components/ui/Spinner'; import { StatCard } from '../../components/ui/StatCard';
+const money = (value: string) => `$${Number(value).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 export function SellerOverviewPage() {
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-navy">Stall overview</h1>
-        <p className="text-sm text-navy/60">A snapshot of how your stall is doing.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Active listings" value="0" />
-        <StatCard label="Open orders" value="0" />
-        <StatCard label="Live auctions" value="0" />
-        <StatCard label="Net this month" value="$0.00" />
-      </div>
-
-      <NotYetAvailable feature="Seller analytics" />
-    </div>
-  );
+  const query = useSellerAnalytics(); if (query.isLoading) return <Spinner label="Counting the cargo…" />; if (!query.data) return <EmptyState title="Analytics unavailable" description="Orders still work; reporting can be retried shortly." />; const { summary, daily, topProducts } = query.data; const max = Math.max(1,...daily.map((d)=>Number(d.gross)));
+  return <div className="flex flex-col gap-6"><div><p className="font-mono text-xs uppercase tracking-[.2em] text-crew-blue">30-day manifest</p><h1 className="font-display text-2xl font-semibold text-navy">Stall overview</h1><p className="text-sm text-navy/60">Ledger-backed figures after refunds and reversals.</p></div><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard label="Gross sales" value={money(summary.grossSales)} /><StatCard label="Net revenue" value={money(summary.netRevenue)} /><StatCard label="Commission" value={money(summary.commissionPaid)} /><StatCard label="Refunds" value={money(summary.refundTotal)} /><StatCard label="Seller orders" value={String(summary.sellerOrderCount)} /><StatCard label="Delivered" value={String(summary.completedOrders)} /><StatCard label="Products" value={String(summary.activeProducts)} /><StatCard label="Live auctions" value={String(summary.activeAuctions)} /></div><div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]"><Card className="p-5"><h2 className="font-display font-semibold text-navy">Daily cargo value</h2><div className="mt-5 flex h-44 items-end gap-1 overflow-hidden">{daily.length ? daily.map((d)=><div key={d.date} className="group flex min-w-3 flex-1 flex-col justify-end" title={`${d.date}: ${money(d.gross)}`}><div className="rounded-t bg-crew-blue transition-colors group-hover:bg-cargo-yellow-dark" style={{height:`${Math.max(3,Number(d.gross)/max*100)}%`}} /></div>):<p className="self-center text-sm text-navy/50">No sales in this period.</p>}</div></Card><Card className="p-5"><h2 className="font-display font-semibold text-navy">Top crates</h2><div className="mt-3 divide-y divide-line">{topProducts.map((p,i)=><div key={`${p.productId}-${i}`} className="flex justify-between py-3 text-sm"><span><strong className="mr-2 text-cargo-yellow-dark">#{i+1}</strong>{p.productName}</span><span className="font-mono">{money(p.sales)}</span></div>)}{!topProducts.length&&<p className="py-8 text-center text-sm text-navy/50">No delivered sales yet.</p>}</div></Card></div></div>;
 }

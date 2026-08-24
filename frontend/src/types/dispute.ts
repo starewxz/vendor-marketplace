@@ -1,0 +1,4 @@
+export type DisputeStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED_CUSTOMER' | 'RESOLVED_SELLER' | 'CLOSED';
+export interface DisputeItem { id: string; productId: string | null; productName: string; unitPrice: string; quantity: number; lineTotal: string; refundedQuantity: number }
+export interface Dispute { id: string; sellerOrderId: string; customerId?: string; sellerProfileId: string; reason: string; description: string; status: DisputeStatus; adminResolution: string | null; sellerResponse: string | null; resolvedAt: string | null; createdAt: string; updatedAt: string; sellerOrder?: { id: string; status: string; createdAt: string; items: DisputeItem[] }; sellerProfile?: { id: string; storeName: string } }
+export interface DisputePage { data: Dispute[]; meta: { page: number; pageSize: number; total: number } }

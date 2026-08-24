@@ -10,6 +10,7 @@ import { useAuth } from '../../features/auth/useAuth';
 import { getApiErrorMessage } from '../../api/error';
 import { AuctionPanel } from '../../components/auction/AuctionPanel';
 import { useProductRealtime } from '../../realtime/hooks/useProductRealtime';
+import { ReviewPanel } from '../../components/reviews/ReviewPanel';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -130,6 +131,7 @@ export function ProductDetailPage() {
           </div>
         )}
       </div>
+      <ReviewPanel productId={product.id} />
     </div>
   );
 }

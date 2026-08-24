@@ -16,5 +16,6 @@ import { OutboxModule } from '../outbox/outbox.module';
   imports: [TypeOrmModule.forFeature([Refund]), OutboxModule],
   controllers: [AdminRefundsController],
   providers: [RefundsService],
+  exports: [RefundsService],
 })
 export class RefundsModule {}

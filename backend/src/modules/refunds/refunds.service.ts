@@ -39,7 +39,7 @@ const IDEMPOTENCY_KEY_MAX_LENGTH = 200;
  */
 const RESTORE_STOCK_ON_REFUND = true;
 
-interface RefundOutcome {
+export interface RefundOutcome {
   refund: Refund;
   touchedProductId: string | null;
   replayed: boolean;
@@ -78,32 +78,17 @@ export class RefundsService {
     try {
       const outcome = await this.refundsRepository.manager.transaction(
         (manager) =>
-          this.runRefundTransaction(
+          this.createRefundInTransaction(
             manager,
             sellerOrderId,
             dto,
             idempotencyKey,
             initiatedBy,
             correlationId,
+            null,
           ),
       );
-
-      if (outcome.touchedProductId) {
-        await this.cache.invalidateProduct(outcome.touchedProductId);
-        await this.cache.invalidateSearch();
-      }
-
-      this.metrics.increment('refunds_total');
-      // Unit is cents (integer counter) — divide by 100 for dollars when
-      // reading this metric; kept as an integer here since the registry
-      // only supports whole-number counters.
-      this.metrics.increment(
-        'refund_amount_total',
-        Number(parseMoneyToCents(outcome.refund.amount)),
-      );
-      this.logger.log(
-        `[${correlationId}] refund created refundId=${outcome.refund.id} amount=${outcome.refund.amount} commissionAdjustment=${outcome.refund.commissionAdjustment} sellerAdjustment=${outcome.refund.sellerAdjustment}`,
-      );
+      await this.afterCommittedRefund(outcome, correlationId);
 
       return this.toView(outcome.refund);
     } catch (error) {
@@ -126,13 +111,14 @@ export class RefundsService {
     return refunds.map((r) => this.toView(r));
   }
 
-  private async runRefundTransaction(
+  async createRefundInTransaction(
     manager: EntityManager,
     sellerOrderId: string,
     dto: CreateRefundDto,
     idempotencyKey: string,
     initiatedBy: string,
     correlationId: string,
+    disputeId: string | null = null,
   ): Promise<RefundOutcome> {
     // Locking the SellerOrder is what serializes every concurrent path
     // that touches its financial state — a second concurrent refund
@@ -208,6 +194,7 @@ export class RefundsService {
         idempotencyKey,
         initiatedBy,
         correlationId,
+        disputeId,
       }),
     );
 
@@ -269,6 +256,26 @@ export class RefundsService {
     });
 
     return { refund, touchedProductId, replayed: false };
+  }
+
+  async afterCommittedRefund(
+    outcome: RefundOutcome,
+    correlationId: string,
+  ): Promise<void> {
+    if (outcome.touchedProductId) {
+      await this.cache.invalidateProduct(outcome.touchedProductId);
+      await this.cache.invalidateSearch();
+    }
+    if (!outcome.replayed) {
+      this.metrics.increment('refunds_total');
+      this.metrics.increment(
+        'refund_amount_total',
+        Number(parseMoneyToCents(outcome.refund.amount)),
+      );
+    }
+    this.logger.log(
+      `[${correlationId}] refund committed refundId=${outcome.refund.id} amount=${outcome.refund.amount}`,
+    );
   }
 
   private async replayCompletedRefund(

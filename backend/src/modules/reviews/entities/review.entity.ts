@@ -2,10 +2,11 @@ import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../../database/base.entity';
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
-import { Order } from '../../orders/entities/order.entity';
+import { SellerOrderItem } from '../../orders/entities/seller-order-item.entity';
 
 @Entity('reviews')
-@Index(['productId', 'authorId'], { unique: true })
+@Index(['sellerOrderItemId', 'customerId'], { unique: true })
+@Index(['productId', 'createdAt'])
 export class Review extends BaseEntity {
   @Column({ type: 'uuid' })
   productId: string;
@@ -15,18 +16,19 @@ export class Review extends BaseEntity {
   product: Product;
 
   @Column({ type: 'uuid' })
-  authorId: string;
+  customerId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'authorId' })
-  author: User;
+  @JoinColumn({ name: 'customerId' })
+  customer: User;
 
-  @Column({ type: 'uuid', nullable: true })
-  orderId: string | null;
+  @Index()
+  @Column({ type: 'uuid' })
+  sellerOrderItemId: string;
 
-  @ManyToOne(() => Order, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'orderId' })
-  order: Order | null;
+  @ManyToOne(() => SellerOrderItem, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sellerOrderItemId' })
+  sellerOrderItem: SellerOrderItem;
 
   @Column({ type: 'smallint' })
   rating: number;

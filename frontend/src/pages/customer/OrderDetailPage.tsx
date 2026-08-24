@@ -6,6 +6,9 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrder } from '../../features/orders/hooks';
 import { formatStatusLabel, ORDER_STATUS_TONE, SELLER_ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 import { useOrderRealtime } from '../../realtime/hooks/useOrderRealtime';
+import { useMyDisputes } from '../../features/disputes/hooks';
+import { useDisputeRealtime } from '../../realtime/hooks/useDisputeRealtime';
+import { CustomerDisputeCard } from '../../components/disputes/CustomerDisputeCard';
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +16,8 @@ export function OrderDetailPage() {
   const location = useLocation();
   const justPlaced = Boolean((location.state as { justPlaced?: boolean } | null)?.justPlaced);
   useOrderRealtime({ orderId: id });
+  useDisputeRealtime();
+  const disputes = useMyDisputes();
 
   if (isLoading) {
     return (
@@ -103,6 +108,7 @@ export function OrderDetailPage() {
                 <span className="text-coral">Refunded: −${sellerOrder.refundedAmount}</span>
               )}
             </div>
+            <CustomerDisputeCard sellerOrder={sellerOrder} dispute={disputes.data?.data.find((d) => d.sellerOrderId === sellerOrder.id)} />
           </Card>
         ))}
       </div>

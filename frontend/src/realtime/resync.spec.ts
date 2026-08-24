@@ -12,6 +12,8 @@ describe('reconnect REST resync', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['orders'] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['seller-orders'] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['seller-auctions'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['disputes'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['analytics', 'seller'] });
   });
 
   it('keeps anonymous reconnect resync limited to public read models', async () => {

@@ -14,6 +14,7 @@ import { Bid } from '../modules/bidding/entities/bid.entity';
 import { SellerOrder } from '../modules/orders/entities/seller-order.entity';
 import { ProcessedEvent } from '../modules/outbox/entities/processed-event.entity';
 import { Product } from '../modules/products/entities/product.entity';
+import { Dispute } from '../modules/disputes/entities/dispute.entity';
 import { QUEUE_NAMES } from '../queue/queue.constants';
 import { RealtimeService } from './realtime.service';
 import {
@@ -57,6 +58,8 @@ export class RealtimeProcessor extends WorkerHost {
     @InjectRepository(SellerOrder)
     private readonly sellerOrders: Repository<SellerOrder>,
     private readonly realtime: RealtimeService,
+    @InjectRepository(Dispute)
+    private readonly disputes: Repository<Dispute>,
   ) {
     super();
   }
@@ -110,7 +113,35 @@ export class RealtimeProcessor extends WorkerHost {
       ].includes(event.eventType)
     ) {
       await this.emitOrderStatus(event);
+      return;
     }
+    if (event.aggregateType === 'Dispute') {
+      await this.emitDispute(event);
+    }
+  }
+
+  private async emitDispute(event: RealtimeJobData): Promise<void> {
+    const dispute = await this.disputes.findOne({
+      where: { id: event.aggregateId },
+    });
+    if (!dispute) return;
+    const eventName =
+      event.eventType === 'DISPUTE_OPENED'
+        ? REALTIME_EVENTS.DISPUTE_OPENED
+        : event.eventType === 'DISPUTE_RESOLVED'
+          ? REALTIME_EVENTS.DISPUTE_RESOLVED
+          : REALTIME_EVENTS.DISPUTE_UPDATED;
+    this.realtime.emitToRooms(
+      [userRoom(dispute.customerId), sellerRoom(dispute.sellerProfileId)],
+      eventName,
+      {
+        disputeId: dispute.id,
+        sellerOrderId: dispute.sellerOrderId,
+        status: dispute.status,
+        updatedAt: dispute.updatedAt.toISOString(),
+      },
+      { correlationId: event.correlationId, eventId: event.outboxEventId },
+    );
   }
 
   private async emitProductStock(event: RealtimeJobData): Promise<void> {

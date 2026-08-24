@@ -17,12 +17,12 @@ export async function resyncAuthoritativeState(
     ['products'],
     ['auction'],
   ];
-  if (role) keys.push(['orders']);
+  if (role) keys.push(['orders'], ['disputes']);
   if (role === 'SELLER') {
-    keys.push(['seller-orders'], ['seller-auctions']);
+    keys.push(['seller-orders'], ['seller-auctions'], ['analytics', 'seller']);
   }
   if (role === 'ADMIN') {
-    keys.push(['admin-orders'], ['admin-auctions']);
+    keys.push(['admin-orders'], ['admin-auctions'], ['analytics', 'admin']);
   }
   await Promise.all(
     keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),

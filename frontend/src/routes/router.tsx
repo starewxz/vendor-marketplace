@@ -23,6 +23,7 @@ import { SellerProductsPage } from '../pages/seller/SellerProductsPage';
 import { SellerOrdersPage } from '../pages/seller/SellerOrdersPage';
 import { SellerOrderDetailPage } from '../pages/seller/SellerOrderDetailPage';
 import { SellerAuctionsPage } from '../pages/seller/SellerAuctionsPage';
+import { SellerDisputesPage } from '../pages/seller/SellerDisputesPage';
 
 import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
 import { AdminSellersPage } from '../pages/admin/AdminSellersPage';
@@ -115,6 +116,7 @@ export const router = createBrowserRouter([
       { path: 'orders', element: <SellerOrdersPage /> },
       { path: 'orders/:id', element: <SellerOrderDetailPage /> },
       { path: 'auctions', element: <SellerAuctionsPage /> },
+      { path: 'disputes', element: <SellerDisputesPage /> },
     ],
   },
   {

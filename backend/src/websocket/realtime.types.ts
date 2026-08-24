@@ -11,6 +11,9 @@ export const REALTIME_EVENTS = {
   AUCTION_PURCHASED: 'auction.purchased',
   AUCTION_PURCHASE_WINDOW_EXPIRED: 'auction.purchase_window.expired',
   ORDER_STATUS_UPDATED: 'order.status.updated',
+  DISPUTE_OPENED: 'dispute.opened',
+  DISPUTE_UPDATED: 'dispute.updated',
+  DISPUTE_RESOLVED: 'dispute.resolved',
 } as const;
 
 export interface SocketIdentity {

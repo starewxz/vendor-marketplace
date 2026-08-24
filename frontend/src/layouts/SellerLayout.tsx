@@ -5,6 +5,7 @@ const SELLER_NAV_ITEMS = [
   { to: '/seller/products', label: 'Products' },
   { to: '/seller/orders', label: 'Orders' },
   { to: '/seller/auctions', label: 'Auctions' },
+  { to: '/seller/disputes', label: 'Disputes' },
 ];
 
 export function SellerLayout() {

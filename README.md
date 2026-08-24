@@ -869,6 +869,7 @@ server-derived automatic seller room.
 | `auction.started/finalized/won/unsold` | Auction room | current public auction state |
 | `auction.purchase_window.opened/purchased/expired` | Auction room | current public auction state/window timestamps |
 | `order.status.updated` | Owning user, owning seller, authorized order room | parent and seller-order ids/statuses, timestamp |
+| `dispute.opened/updated/resolved` | Owning customer and seller private rooms | dispute and seller-order ids, status, timestamp |
 
 The shared frontend socket reconnects with bounded Socket.IO backoff, updates authentication whenever the in-memory
 access token changes, and re-subscribes mounted product/auction/order hooks after reconnect. Crucially, reconnect does
@@ -876,3 +877,28 @@ not attempt event replay: TanStack Query invalidates active catalog/product/auct
 queries, refetching REST state before continuing live updates. Duplicate messages are safe cache updates, and payload
 timestamps prevent an older stock/auction event from overwriting newer cached state. If Redis or WebSockets are down,
 all REST flows continue working; the auction view retains a low-frequency REST fallback.
+
+## Reviews, disputes, and analytics (Stage 8)
+
+- Reviews are anchored to a `SellerOrderItem`, not merely a product id. The API verifies that the authenticated
+  customer owns the parent Order, the SellerOrder is `DELIVERED`, and at least one purchased unit remains after
+  completed refunds. A unique `(sellerOrderItemId, customerId)` constraint prevents duplicate purchase reviews.
+- Review create/update/delete locks the Product, mutates the Review, recomputes `ratingAverage`/`ratingCount`, and
+  writes `PRODUCT_UPDATED` in one PostgreSQL transaction. Search rating follows the existing Outbox → BullMQ →
+  Meilisearch path; Redis product/search caches are invalidated only after commit.
+- Disputes belong to one SellerOrder and follow `OPEN → UNDER_REVIEW → RESOLVED_CUSTOMER|RESOLVED_SELLER → CLOSED`.
+  A partial unique index permits only one active dispute per SellerOrder. Customer and seller reads are ownership
+  scoped and return sanitized views; only Admin can resolve.
+- A customer-favor dispute refund calls the existing Stage 5 transaction-aware refund implementation. Dispute state,
+  Refund, append-only ledger corrections, stock restoration, and Outbox events therefore commit or roll back together.
+  Private `dispute.opened/updated/resolved` events reuse the Stage 7 user/seller rooms.
+- Seller and admin dashboards use bounded SQL `GROUP BY` read models over Orders, SellerOrders, Refunds, Products,
+  Auctions, and the append-only Ledger. Platform revenue is effective commission
+  (`COMMISSION_DEBIT - PLATFORM_COMMISSION_REVERSAL`); seller net also accounts for sale credits and both reversal
+  types. Reports are cached in Redis for 45 seconds under role/seller/date-scoped keys.
+- Cart conversion is explicitly an approximation: successful fixed-price checkout idempotency records divided by
+  successful checkouts plus non-empty carts created in the selected period. Auction winner checkout is excluded.
+- Admin JSON export uses schema version `1.0`. CSV export contains daily effective figures, applies RFC-style quote
+  escaping, and prefixes cells beginning with `=`, `+`, `-`, or `@` to prevent spreadsheet formula injection.
+
+Stage 9 remains responsible for final load testing, broad hardening, and project finalization.
