@@ -11,9 +11,11 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
  * rather than a blanket style.
  */
 export function Card({ notch = false, className = '', children, ...props }: CardProps) {
+  const backgroundClass = /(?:^|\s)bg-/.test(className) ? '' : 'bg-white';
+
   return (
     <div
-      className={`bg-white border border-line rounded-2xl ${notch ? 'cargo-tag' : ''} ${className}`}
+      className={`${backgroundClass} border border-line rounded-2xl ${notch ? 'cargo-tag' : ''} ${className}`}
       {...props}
     >
       {children}

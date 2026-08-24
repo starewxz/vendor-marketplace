@@ -23,6 +23,7 @@ import { SellerProductsPage } from '../pages/seller/SellerProductsPage';
 import { SellerOrdersPage } from '../pages/seller/SellerOrdersPage';
 import { SellerOrderDetailPage } from '../pages/seller/SellerOrderDetailPage';
 import { SellerAuctionsPage } from '../pages/seller/SellerAuctionsPage';
+import { SellerAuctionDetailPage } from '../pages/seller/SellerAuctionDetailPage';
 import { SellerDisputesPage } from '../pages/seller/SellerDisputesPage';
 
 import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
@@ -33,6 +34,7 @@ import { AdminOrderDetailPage } from '../pages/admin/AdminOrderDetailPage';
 import { AdminDisputesPage } from '../pages/admin/AdminDisputesPage';
 import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
 import { AdminAuctionsPage } from '../pages/admin/AdminAuctionsPage';
+import { AdminAuctionDetailPage } from '../pages/admin/AdminAuctionDetailPage';
 
 import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -116,6 +118,7 @@ export const router = createBrowserRouter([
       { path: 'orders', element: <SellerOrdersPage /> },
       { path: 'orders/:id', element: <SellerOrderDetailPage /> },
       { path: 'auctions', element: <SellerAuctionsPage /> },
+      { path: 'auctions/:id', element: <SellerAuctionDetailPage /> },
       { path: 'disputes', element: <SellerDisputesPage /> },
     ],
   },
@@ -135,6 +138,7 @@ export const router = createBrowserRouter([
       { path: 'disputes', element: <AdminDisputesPage /> },
       { path: 'analytics', element: <AdminAnalyticsPage /> },
       { path: 'auctions', element: <AdminAuctionsPage /> },
+      { path: 'auctions/:id', element: <AdminAuctionDetailPage /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

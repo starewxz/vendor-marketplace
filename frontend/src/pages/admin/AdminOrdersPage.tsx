@@ -5,9 +5,12 @@ import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useAllOrders } from '../../features/adminOrders/hooks';
 import { formatStatusLabel, ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
+import { useState } from 'react';
+import { PaginationControls } from '../../components/ui/PaginationControls';
 
 export function AdminOrdersPage() {
-  const { data, isLoading, isError } = useAllOrders();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = useAllOrders(page);
 
   return (
     <div className="flex flex-col gap-4">
@@ -38,6 +41,7 @@ export function AdminOrdersPage() {
           </Link>
         ))}
       </div>
+      {data && <PaginationControls page={data.page} totalPages={Math.max(1, Math.ceil(data.total / data.pageSize))} onPageChange={setPage} />}
     </div>
   );
 }

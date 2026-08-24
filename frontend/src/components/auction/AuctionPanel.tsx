@@ -78,7 +78,10 @@ export function AuctionPanel({ productId }: { productId: string }) {
     setError(null);
     bid.mutate(
       { amount: amount || defaultBid, key: crypto.randomUUID() },
-      { onError: (cause) => setError(getApiErrorMessage(cause, 'This bid was not accepted.')) },
+      {
+        onSuccess: () => setAmount(''),
+        onError: (cause) => setError(getApiErrorMessage(cause, 'This bid was not accepted.')),
+      },
     );
   }
 
@@ -112,11 +115,18 @@ export function AuctionPanel({ productId }: { productId: string }) {
           <form onSubmit={submitBid} className="flex items-end gap-2">
             <div className="flex-1">
               <label htmlFor="bid-amount" className="mb-1 block text-xs font-medium text-navy/60">Your bid</label>
-              <Input id="bid-amount" value={amount || auction.minNextBid} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" required />
+              <Input id="bid-amount" type="number" min={auction.minNextBid} step="0.01" value={amount || auction.minNextBid} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" required />
             </div>
             <Button type="submit" disabled={bid.isPending}>{bid.isPending ? 'Checking bid…' : 'Place bid'}</Button>
           </form>
         )}
+        {auction.status === 'ACTIVE' && (user?.role === 'SELLER' || user?.role === 'ADMIN') && (
+          <p className="rounded-xl bg-cream px-3 py-2 text-sm text-navy/60">Seller and admin accounts can watch this auction, but bidding requires a customer account.</p>
+        )}
+        {auction.status === 'AWAITING_PAYMENT' && !winner.data?.isWinner && (
+          <p className="rounded-xl bg-cream px-3 py-2 text-sm text-navy/60">The auction has a winner and is awaiting purchase.</p>
+        )}
+        {auction.status === 'EXPIRED' && <p className="rounded-xl bg-coral/10 px-3 py-2 text-sm text-coral">The winner purchase window expired. The seller can relist this item.</p>}
 
         {winner.data?.isWinner && (
           <div className="rounded-xl border border-mint/40 bg-mint/10 p-4">

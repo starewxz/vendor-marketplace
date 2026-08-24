@@ -1,17 +1,29 @@
+import { Link } from 'react-router-dom';
 import { Logo } from '../ui/Logo';
 
 const FOOTER_COLUMNS = [
   {
     heading: 'Shop',
-    links: ['Catalog', 'Deals', 'Auctions', 'New arrivals'],
+    links: [
+      { label: 'Catalog', to: '/catalog' },
+      { label: 'Deals', to: '/catalog?sort=price:asc' },
+      { label: 'Auctions', to: '/catalog?type=AUCTION' },
+      { label: 'New arrivals', to: '/catalog?sort=createdAt:desc' },
+    ],
   },
   {
     heading: 'Sell',
-    links: ['Become a seller', 'Seller dashboard', 'Commission rates'],
+    links: [
+      { label: 'Become a seller', to: '/account/seller' },
+      { label: 'Seller dashboard', to: '/seller' },
+    ],
   },
   {
     heading: 'Support',
-    links: ['Track an order', 'Returns & disputes', 'Contact the crew'],
+    links: [
+      { label: 'Track an order', to: '/account/orders' },
+      { label: 'Returns & disputes', to: '/account/orders' },
+    ],
   },
 ];
 
@@ -30,9 +42,9 @@ export function Footer() {
           <div key={column.heading} className="flex flex-col gap-2.5">
             <h4 className="text-sm font-semibold text-paper">{column.heading}</h4>
             {column.links.map((link) => (
-              <span key={link} className="text-sm">
-                {link}
-              </span>
+              <Link key={link.label} to={link.to} className="text-sm hover:text-paper">
+                {link.label}
+              </Link>
             ))}
           </div>
         ))}

@@ -65,6 +65,7 @@ export function CatalogPage() {
     sellerId: searchParams.get('sellerId') ?? undefined,
     minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : undefined,
     maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined,
+    minRating: searchParams.get('minRating') ? Number(searchParams.get('minRating')) : undefined,
     available: searchParams.get('available') === 'true' ? true : undefined,
     type: (searchParams.get('type') as ProductType | null) ?? undefined,
     sort: searchParams.get('sort') ?? undefined,
@@ -92,7 +93,8 @@ export function CatalogPage() {
   }
 
   const categoryNameById = new Map((categories ?? []).map((c) => [c.id, c.name]));
-  const hasActiveFilters = ['categoryId', 'sellerId', 'minPrice', 'maxPrice', 'available', 'type'].some((k) =>
+  const sellerNameById = new Map((data?.data ?? []).map((product) => [product.sellerId, product.sellerName]));
+  const hasActiveFilters = ['categoryId', 'sellerId', 'minPrice', 'maxPrice', 'minRating', 'available', 'type'].some((k) =>
     searchParams.has(k),
   );
 
@@ -144,10 +146,21 @@ export function CatalogPage() {
             searchParams={searchParams}
             setParam={setParam}
           />
+          <div className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold tracking-wide text-navy/50 uppercase">Minimum rating</h3>
+            <select value={query.minRating ?? ''} onChange={(event) => setParam('minRating', event.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm text-navy" aria-label="Minimum rating">
+              <option value="">Any rating</option>
+              <option value="4">4★ and up</option>
+              <option value="3">3★ and up</option>
+              <option value="2">2★ and up</option>
+              <option value="1">1★ and up</option>
+            </select>
+          </div>
           <FacetGroup
             title="Seller"
             facet={data?.facets?.sellerId}
             paramKey="sellerId"
+            labelFor={(id) => sellerNameById.get(id) ?? `Seller ${id.slice(0, 6)}`}
             searchParams={searchParams}
             setParam={setParam}
           />

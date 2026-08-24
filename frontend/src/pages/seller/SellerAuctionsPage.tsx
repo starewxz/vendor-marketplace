@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { AuctionOperationsCard } from '../../components/auction/AuctionOperationsCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
@@ -59,8 +59,8 @@ export function SellerAuctionsPage() {
       {showForm && <Card className="border-sunny/60 p-5">
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
           <label className="text-sm text-navy">Auction product<select className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2" value={productId} onChange={(e) => setProductId(e.target.value)} required><option value="">Choose an auction product</option>{eligible.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
-          <Input id="start-price" label="Start price" value={startPrice} onChange={(e) => setStartPrice(e.target.value)} required />
-          <Input id="increment" label="Minimum increment" value={increment} onChange={(e) => setIncrement(e.target.value)} required />
+          <Input id="start-price" label="Start price" type="number" min="0.01" step="0.01" value={startPrice} onChange={(e) => setStartPrice(e.target.value)} required />
+          <Input id="increment" label="Minimum increment" type="number" min="0.01" step="0.01" value={increment} onChange={(e) => setIncrement(e.target.value)} required />
           <Input id="starts-at" label="Starts at" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required />
           <Input id="ends-at" label="Ends at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} required />
           <div className="flex items-end"><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Scheduling…' : 'Schedule auction'}</Button></div>
@@ -72,11 +72,16 @@ export function SellerAuctionsPage() {
       {auctions.isLoading && <Spinner label="Loading auctions…" />}
       {auctions.isError && <EmptyState title="Couldn't load auctions" description="Try refreshing this page." />}
       {!auctions.isLoading && auctions.data?.length === 0 && <EmptyState title="No auctions configured" description="Create an auction-type product, then set its bidding window here." />}
-      <div className="grid gap-4 lg:grid-cols-2">{auctions.data?.map((auction) => <Card key={auction.id} className="overflow-hidden p-0">
-        <div className="flex items-start justify-between bg-cream/50 p-4"><div><p className="font-semibold text-navy">{auction.productName}</p><p className="text-xs text-navy/50">Ends {new Date(auction.endsAt).toLocaleString()}</p></div><Badge tone={auction.status === 'ACTIVE' ? 'mint' : auction.status === 'AWAITING_PAYMENT' ? 'coral' : 'neutral'}>{auction.status.replaceAll('_', ' ')}</Badge></div>
-        <div className="grid grid-cols-3 gap-3 p-4 text-sm"><div><p className="text-xs text-navy/45">Current</p><p className="font-mono font-semibold text-navy">${auction.currentPrice}</p></div><div><p className="text-xs text-navy/45">Bids</p><p className="font-mono font-semibold text-navy">{auction.bidCount}</p></div><div><p className="text-xs text-navy/45">Next</p><p className="font-mono font-semibold text-navy">${auction.minNextBid}</p></div></div>
-        {(auction.status === 'ACTIVE' || auction.status === 'SCHEDULED') && <div className="border-t border-line px-4 py-3"><Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => confirm('Cancel this auction?') && cancel.mutate(auction.id)}>Cancel auction</Button></div>}
-      </Card>)}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{auctions.data?.map((auction) => (
+        <AuctionOperationsCard
+          key={auction.id}
+          auction={auction}
+          detailPath={`/seller/auctions/${auction.id}`}
+          footer={(auction.status === 'ACTIVE' || auction.status === 'SCHEDULED') ? (
+            <div className="border-t border-line px-4 py-3"><Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => confirm('Cancel this auction?') && cancel.mutate(auction.id)}>Cancel auction</Button></div>
+          ) : undefined}
+        />
+      ))}</div>
     </div>
   );
 }

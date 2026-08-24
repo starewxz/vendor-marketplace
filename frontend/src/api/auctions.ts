@@ -46,6 +46,10 @@ export async function fetchSellerAuctions() {
   return (await apiClient.get<SellerAuction[]>('/seller/auctions')).data;
 }
 
+export async function fetchSellerAuction(id: string) {
+  return (await apiClient.get<SellerAuction>(`/seller/auctions/${id}`)).data;
+}
+
 export async function createAuction(input: AuctionInput) {
   return (await apiClient.post<SellerAuction>('/seller/auctions', input)).data;
 }
@@ -60,4 +64,12 @@ export async function cancelAuction(id: string) {
 
 export async function fetchAdminAuctions() {
   return (await apiClient.get<PaginatedAuctions>('/admin/auctions')).data;
+}
+
+export async function fetchAdminAuction(id: string) {
+  return (await apiClient.get<SellerAuction>(`/admin/auctions/${id}`)).data;
+}
+
+export async function cancelAdminAuction(id: string) {
+  return (await apiClient.post<SellerAuction>(`/admin/auctions/${id}/cancel`)).data;
 }

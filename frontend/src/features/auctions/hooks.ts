@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelAuction,
+  cancelAdminAuction,
   checkoutAuction,
   createAuction,
   fetchAdminAuctions,
+  fetchAdminAuction,
   fetchBidHistory,
   fetchProductAuction,
   fetchSellerAuctions,
+  fetchSellerAuction,
   fetchWinnerState,
   placeBid,
   updateAuction,
@@ -58,6 +61,14 @@ export function useSellerAuctions() {
   return useQuery({ queryKey: ['seller-auctions'], queryFn: fetchSellerAuctions });
 }
 
+export function useSellerAuction(id?: string) {
+  return useQuery({
+    queryKey: ['seller-auctions', id],
+    queryFn: () => fetchSellerAuction(id!),
+    enabled: Boolean(id),
+  });
+}
+
 export function useCreateAuction() {
   const client = useQueryClient();
   return useMutation({
@@ -85,4 +96,20 @@ export function useCancelAuction() {
 
 export function useAdminAuctions() {
   return useQuery({ queryKey: ['admin-auctions'], queryFn: fetchAdminAuctions });
+}
+
+export function useAdminAuction(id?: string) {
+  return useQuery({
+    queryKey: ['admin-auctions', id],
+    queryFn: () => fetchAdminAuction(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useCancelAdminAuction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: cancelAdminAuction,
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['admin-auctions'] }),
+  });
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthContext, type AuthContextValue } from './auth-context';
-import { setAccessToken } from './token-storage';
+import { setAccessToken, subscribeAccessToken } from './token-storage';
 import * as authApi from '../../api/auth';
 import type { AuthenticatedUser } from '../../types/user';
 
@@ -37,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => subscribeAccessToken((token) => {
+    if (token === null && !isInitializing) setUser(null);
+  }), [isInitializing]);
 
   const login = useCallback(async (input: authApi.LoginInput) => {
     const res = await authApi.login(input);

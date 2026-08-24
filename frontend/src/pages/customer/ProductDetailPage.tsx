@@ -11,6 +11,7 @@ import { getApiErrorMessage } from '../../api/error';
 import { AuctionPanel } from '../../components/auction/AuctionPanel';
 import { useProductRealtime } from '../../realtime/hooks/useProductRealtime';
 import { ReviewPanel } from '../../components/reviews/ReviewPanel';
+import { clampPurchaseQuantity } from '../../features/stage9/ux';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ export function ProductDetailPage() {
   const addToCart = useAddCartItem();
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   useProductRealtime(id);
 
   if (isLoading) {
@@ -97,7 +99,15 @@ export function ProductDetailPage() {
         ) : isAuthenticated && user?.role !== 'CUSTOMER' ? (
           <p className="text-sm text-navy/50">Only customer accounts can add items to a cart.</p>
         ) : (
-          <div className="flex flex-col items-start gap-2">
+          <div className="flex flex-col items-start gap-3">
+            <label className="grid gap-1 text-sm font-medium text-navy" htmlFor="product-quantity">
+              Quantity
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" size="sm" disabled={quantity <= 1} onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Decrease quantity">−</Button>
+                <input id="product-quantity" type="number" min={1} max={product.stockQuantity} value={quantity} onChange={(event) => setQuantity(clampPurchaseQuantity(Number(event.target.value), product.stockQuantity))} className="w-20 rounded-xl border border-line bg-white px-3 py-2 text-center text-sm" />
+                <Button type="button" variant="ghost" size="sm" disabled={quantity >= product.stockQuantity} onClick={() => setQuantity((value) => Math.min(product.stockQuantity, value + 1))} aria-label="Increase quantity">+</Button>
+              </div>
+            </label>
             <Button
               disabled={!isAvailable || addToCart.isPending}
               className="w-fit"
@@ -108,7 +118,7 @@ export function ProductDetailPage() {
                 }
                 setAddToCartError(null);
                 addToCart.mutate(
-                  { productId: product.id, quantity: 1 },
+                  { productId: product.id, quantity },
                   {
                     onSuccess: () => {
                       setJustAdded(true);

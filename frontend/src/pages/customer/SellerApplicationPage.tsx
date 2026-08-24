@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -65,6 +65,16 @@ function ApplicationForm() {
 export function SellerApplicationPage() {
   const { user, refreshSession } = useAuth();
   const { data: applications, isLoading, isError } = useMyApplications();
+  const latest = applications?.[0];
+  const activated = useRef(false);
+
+  useEffect(() => {
+    if (latest?.status !== 'APPROVED' || user?.role !== 'CUSTOMER' || activated.current) return;
+    activated.current = true;
+    void refreshSession().catch(() => {
+      activated.current = false;
+    });
+  }, [latest?.status, refreshSession, user?.role]);
 
   if (user?.role === 'SELLER' || user?.role === 'ADMIN') {
     return (
@@ -89,8 +99,6 @@ export function SellerApplicationPage() {
   if (isError) {
     return <EmptyState title="Couldn't load your application status" description="Try refreshing the page." />;
   }
-
-  const latest = applications?.[0];
 
   if (!latest) {
     return <ApplicationForm />;

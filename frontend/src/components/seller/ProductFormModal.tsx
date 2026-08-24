@@ -50,9 +50,9 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-navy/40 px-4 py-8">
-      <Card className="flex w-full max-w-lg flex-col gap-4 p-5">
-        <h2 className="font-display text-lg font-semibold text-navy">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-navy/40 px-4 py-8" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <Card className="flex w-full max-w-lg flex-col gap-4 p-5" role="dialog" aria-modal="true" aria-labelledby="product-form-heading">
+        <h2 id="product-form-heading" className="font-display text-lg font-semibold text-navy">
           {product ? 'Edit product' : 'New product'}
         </h2>
 
@@ -101,7 +101,7 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
               id="type"
               className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-navy"
               value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ProductType }))}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ProductType, stockQuantity: e.target.value === 'AUCTION' && f.stockQuantity === 0 ? 1 : f.stockQuantity }))}
             >
               <option value="FIXED_PRICE">Fixed price</option>
               <option value="AUCTION">Auction</option>
@@ -110,8 +110,7 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
 
           {form.type === 'AUCTION' && (
             <p className="rounded-lg bg-cream px-3 py-2 text-xs text-navy/60">
-              Auction pricing, start/end times, and bidding are configured in a later stage — this just creates the
-              product listing itself.
+              Save this auction listing, then configure its opening price and schedule from the Auction desk.
             </p>
           )}
 
@@ -120,6 +119,9 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
               <Input
                 id="price"
                 label="Price ($)"
+                type="number"
+                min="0"
+                step="0.01"
                 inputMode="decimal"
                 value={form.price}
                 onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
@@ -140,6 +142,7 @@ export function ProductFormModal({ product, onClose }: ProductFormModalProps) {
           <Input
             id="imageUrl"
             label="Image URL (optional)"
+            type="url"
             value={form.imageUrls?.[0] ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, imageUrls: e.target.value ? [e.target.value] : [] }))}
           />

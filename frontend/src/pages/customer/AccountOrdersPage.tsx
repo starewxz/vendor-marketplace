@@ -6,9 +6,12 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrders } from '../../features/orders/hooks';
 import { formatStatusLabel, ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 import { useOrderRealtime } from '../../realtime/hooks/useOrderRealtime';
+import { useState } from 'react';
+import { PaginationControls } from '../../components/ui/PaginationControls';
 
 export function AccountOrdersPage() {
-  const { data, isLoading, isError } = useMyOrders();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = useMyOrders(page);
   useOrderRealtime();
 
   return (
@@ -39,6 +42,7 @@ export function AccountOrdersPage() {
           </Link>
         ))}
       </div>
+      {data && <PaginationControls page={data.page} totalPages={Math.max(1, Math.ceil(data.total / data.pageSize))} onPageChange={setPage} />}
     </div>
   );
 }

@@ -6,7 +6,11 @@ const MY_APPLICATIONS_KEY = ['seller-applications', 'me'];
 const ADMIN_APPLICATIONS_KEY = ['seller-applications', 'admin'];
 
 export function useMyApplications() {
-  return useQuery({ queryKey: MY_APPLICATIONS_KEY, queryFn: api.fetchMyApplications });
+  return useQuery({
+    queryKey: MY_APPLICATIONS_KEY,
+    queryFn: api.fetchMyApplications,
+    refetchInterval: (query) => query.state.data?.[0]?.status === 'PENDING' ? 15_000 : false,
+  });
 }
 
 export function useApplyForSeller() {

@@ -71,6 +71,12 @@ export function AccountPage() {
           </Link>
         </Card>
       )}
+      {user.role === 'ADMIN' && (
+        <Card className="flex items-center justify-between gap-4 p-5">
+          <div><p className="font-semibold text-navy">Marketplace control room</p><p className="text-sm text-navy/60">Review operations, disputes, and platform analytics.</p></div>
+          <Link to="/admin"><Button variant="secondary">Go to admin</Button></Link>
+        </Card>
+      )}
     </div>
   );
 }

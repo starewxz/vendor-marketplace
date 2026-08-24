@@ -800,7 +800,7 @@ cancellation/refund initiated *from* the parent (only per-SellerOrder actions ex
   only after commit. `BID_PLACED`, finalization, purchase, and expiry events remain available for Stage 7 realtime
   notifications without broadcasting before commit.
 - Frontend product details now show a yellow auction console with current price, minimum next bid, countdown,
-  polling bid history, bid errors, and winner purchase CTA. Sellers configure and monitor auctions at
+  realtime bid history with a low-frequency REST fallback, bid errors, and winner purchase CTA. Sellers configure and monitor auctions at
   `/seller/auctions`; admins have a minimal operational view at `/admin/auctions`.
 
 ### Auction timing and recovery sequence
@@ -901,4 +901,25 @@ all REST flows continue working; the auction view retains a low-frequency REST f
 - Admin JSON export uses schema version `1.0`. CSV export contains daily effective figures, applies RFC-style quote
   escaping, and prefixes cells beginning with `=`, `+`, `-`, or `@` to prevent spreadsheet formula injection.
 
-Stage 9 remains responsible for final load testing, broad hardening, and project finalization.
+## Frontend integration (Stage 9)
+
+The React application exposes the completed marketplace capabilities through role-aware routes rather than API-only
+workflows:
+
+- Customers use `/catalog`, `/product/:id`, `/cart`, `/checkout`, `/account/orders`, and `/account/seller` for
+  search/facets, fixed-price and auction purchases, grouped multi-seller checkout, order/refund/dispute history,
+  verified reviews, and seller applications.
+- Sellers use `/seller/products`, `/seller/orders`, `/seller/auctions`, `/seller/disputes`, and the seller dashboard
+  for owned inventory, fulfillment, auction configuration/details, case responses, and date-scoped analytics.
+- Admins use `/admin/sellers`, `/admin/categories`, `/admin/orders`, `/admin/auctions`, `/admin/disputes`, and
+  `/admin/analytics` for moderation, financial inspection/refunds, operational auction detail, dispute resolution,
+  platform reporting, and server-generated CSV/JSON exports.
+
+The shared Socket.IO provider remains optional infrastructure: product, auction, order, and dispute events update or
+invalidate TanStack Query state, while reconnect always performs an authoritative REST resync. A small connection
+indicator reports Live/Reconnecting/Offline without blocking normal REST use. Navigation, dashboards, forms, cards,
+empty/error/loading states, and data-heavy views share the existing responsive Cargo Crew design system.
+
+Frontend checks are `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Storybook is not configured
+in this project, so there is no `build-storybook` command; focused Vitest tests cover important UI decision rules.
+Stage 10 remains responsible for final observability/CI hardening, load testing, and submission documentation.
