@@ -25,6 +25,7 @@ import { SellerOrderProcessingModule } from './modules/seller-order-processing/s
 import { CartModule } from './modules/cart/cart.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
 import { BiddingModule } from './modules/bidding/bidding.module';
 import { PaymentsLedgerModule } from './modules/payments-ledger/payments-ledger.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -80,6 +81,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     CartModule,
     CheckoutModule,
     OrdersModule,
+    RefundsModule,
     BiddingModule,
     PaymentsLedgerModule,
     AnalyticsModule,

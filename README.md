@@ -1,10 +1,11 @@
 # Cargo Crew — Multi-Vendor Marketplace
 
 A general-purpose, high-volume multi-vendor marketplace (think: many independent sellers, fixed-price and auction
-listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–4**: foundation +
-architecture, auth + seller moderation, catalog + search, and cart/checkout/orders (see
+listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–5**: foundation +
+architecture, auth + seller moderation, catalog + search, cart/checkout/orders, and the seller-order lifecycle
+(status progression, independent cancellation, partial refunds) (see
 [Current implementation status](#current-implementation-status)) — a production-minded build-out, not a finished
-product. Auctions/bidding, refunds, reviews, disputes, analytics, and full realtime notifications are still ahead.
+product. Auctions/bidding, reviews, disputes, analytics, and full realtime notifications are still ahead.
 
 ## Table of contents
 
@@ -14,6 +15,7 @@ product. Auctions/bidding, refunds, reviews, disputes, analytics, and full realt
 - [Consistency model](#consistency-model)
 - [Catalog & search (Stage 3)](#catalog--search-stage-3)
 - [Cart, checkout & orders (Stage 4)](#cart-checkout--orders-stage-4)
+- [Seller order lifecycle, cancellation & refunds (Stage 5)](#seller-order-lifecycle-cancellation--refunds-stage-5)
 - [Project structure](#project-structure)
 - [Development setup](#development-setup)
 - [Docker setup](#docker-setup)
@@ -388,6 +390,166 @@ disabled while the request is in flight), `/account/orders` + `/account/orders/:
 `/admin/orders/:id` (full admin visibility). `/cart` and `/checkout` are gated to the `CUSTOMER` role client-side,
 matching the backend's `@Roles(CUSTOMER)` restriction on those endpoints.
 
+## Seller order lifecycle, cancellation & refunds (Stage 5)
+
+### SellerOrder status lifecycle
+
+```
+AWAITING_FULFILLMENT → PROCESSING → SHIPPED → DELIVERED
+        │                   │
+        └──────► CANCELLED ◄┘            (SHIPPED/DELIVERED cannot cancel — see below)
+```
+
+Every transition is validated by one function, `assertValidStatusTransition` (`orders/domain/seller-order-status.policy.ts`)
+— a lookup table of legal `from → to` pairs, called by both the seller-facing (`PATCH /seller/orders/:id/status`) and
+admin-facing (`PATCH /admin/seller-orders/:id/status`) endpoints. There's no separate admin code path with looser
+rules: admin privileges widen *who* can act on a given SellerOrder (unscoped vs. owned-only), never *what*
+transitions are valid. `COMPLETED → PROCESSING`, `CANCELLED → SHIPPED`, and every other backward/lateral move is
+rejected with 409 before touching any row.
+
+Cancellation is a **separate, dedicated endpoint** (`POST .../cancel`), not a status value reachable through the
+generic status endpoint — `CANCELLED` never appears as a legal target in the transition table, so a client can't
+"PATCH its way" into cancelling. It's only allowed from `AWAITING_FULFILLMENT` or `PROCESSING`: once a SellerOrder
+is `SHIPPED`, the seller has already handed the item to a carrier and incurred fulfillment cost, so cancellation
+stops being the right tool — a partial refund (below) is used instead post-shipment.
+
+### Parent Order aggregation
+
+The parent `Order.status` is never set directly by any controller — it's always *derived* from every one of its
+SellerOrders' current status, by a pure function (`deriveParentOrderStatus`, `orders/domain/order-aggregate-status.ts`)
+called after every SellerOrder mutation. Two axes:
+
+1. **Cancellation is orthogonal to progress.** Some (not all) SellerOrders `CANCELLED` → `PARTIALLY_CANCELLED`,
+   regardless of how advanced the rest are. All `CANCELLED` → `CANCELLED`.
+2. **Otherwise, the spread across non-cancelled SellerOrders' fulfillment rank** (`AWAITING_FULFILLMENT` <
+   `PROCESSING` < `SHIPPED` < `DELIVERED`) decides it: all equal → the pure state (`NEW`/`PROCESSING`/`SHIPPED`/`COMPLETED`);
+   a spread → the `PARTIALLY_*` variant of whichever end is furthest along (`PARTIALLY_SHIPPED`, `PARTIALLY_COMPLETED`).
+
+```
+Order #100
+  SellerOrder A: PROCESSING → SHIPPED → COMPLETED
+  SellerOrder B: PROCESSING → CANCELLED
+
+Order.status over time: NEW → PROCESSING → PARTIALLY_SHIPPED → PARTIALLY_CANCELLED
+                         (both AWAITING)   (A ships, B still   (B cancelled; A's progress
+                                             PROCESSING)         no longer matters — some
+                                                                  cancelled always wins)
+```
+
+### Independent SellerOrder cancellation
+
+**Critical invariant: cancelling SellerOrder A must never affect SellerOrder B under the same Order.** The
+cancellation transaction (`SellerOrderLifecycleService.cancel`) locks only the target SellerOrder row
+(`SELECT ... FOR UPDATE`), reads only *its* `SellerOrderItem`s, restores stock only for *its* products, and writes
+reversal ledger entries scoped only to *its* `sellerOrderId` — there is no code path that touches a sibling
+SellerOrder's rows. Verified directly (both the unit suite and a dedicated e2e scenario): cancelling one
+SellerOrder in a two-seller Order leaves the other's status, stock, and ledger completely untouched, and the parent
+recomputes to `PARTIALLY_CANCELLED`.
+
+```
+BEGIN
+  SELECT SellerOrder ... FOR UPDATE                 -- serializes concurrent cancel/status/refund calls on this row
+  already CANCELLED? → COMMIT as a no-op (idempotent replay, no re-mutation)
+  assertCancellable(status)                          -- 409 if SHIPPED/DELIVERED
+  for each SellerOrderItem: UPDATE products SET stockQuantity += qty
+  INSERT ledger_entries: SELLER_EARNING_REVERSAL (=subtotal), PLATFORM_COMMISSION_REVERSAL (=commission)
+  UPDATE seller_orders SET status = CANCELLED
+  recompute + persist parent Order.status if changed
+  INSERT outbox_events: SELLER_ORDER_CANCELLED, STOCK_CHANGED (per product), ORDER_STATUS_CHANGED (if changed)
+COMMIT
+```
+
+**Idempotency and concurrency** come from the same row lock, not a separate mechanism: two simultaneous cancel
+requests both attempt `SELECT ... FOR UPDATE` on the same row — Postgres serializes them, the first to commit wins,
+the second re-reads the now-`CANCELLED` row and returns early without restoring stock or writing ledger entries a
+second time. Verified with 5 truly concurrent cancel requests against one SellerOrder: stock restored exactly
+once, exactly 4 ledger rows (2 original + 2 reversal, never more).
+
+### Financial correction model — append-only, never mutated
+
+Cancelling or refunding never rewrites the original `SALE_CREDIT`/`COMMISSION_DEBIT` ledger entries from checkout,
+or the SellerOrder's original `subtotal`/`commissionAmount`/`sellerNetAmount` columns — those stay exactly as
+checkout wrote them, forever. Corrections are new, separate ledger rows: `SELLER_EARNING_REVERSAL` (mirrors
+`SALE_CREDIT`'s magnitude) and `PLATFORM_COMMISSION_REVERSAL` (mirrors `COMMISSION_DEBIT`'s), so
+`SALE_CREDIT − SELLER_EARNING_REVERSAL` and `COMMISSION_DEBIT − PLATFORM_COMMISSION_REVERSAL` always reconcile to
+the current effective figures. A full cancellation reverses the entire pair; a partial refund reverses only the
+refunded portion. Effective totals (`deriveSellerOrderFinancialSummary`, `orders/domain/financial-summary.ts`) are
+always *derived* at read time from the original figures plus completed `Refund` rows (or, for a cancelled
+SellerOrder, a full reversal by definition) — never stored, so there's exactly one source of truth for "what does
+this seller order actually net out to right now."
+
+### Partial refunds
+
+A `Refund` is scoped to one `SellerOrderItem` and a quantity, not the whole SellerOrder — `SellerOrder.status`
+itself never changes for a partial refund (it's a financial correction, not a fulfillment state change). Refund
+eligibility requires the SellerOrder to be past `AWAITING_FULFILLMENT` (nothing to refund yet — cancel instead) and
+not `CANCELLED` (already fully reversed) — enforced by the same `assertRefundable` policy function pattern as
+status transitions.
+
+**Calculation is entirely server-side**, from the `SellerOrderItem`'s immutable purchase snapshot (`unitPrice`),
+never the product's current price and never a client-supplied amount:
+
+```
+refundGross = item.unitPrice × requestedQuantity
+commissionCorrection = refundGross × (sellerOrder.commissionAmount / sellerOrder.subtotal)   -- applyRatio()
+sellerCorrection = refundGross − commissionCorrection
+```
+
+Using the SellerOrder's *own stored* commission/subtotal ratio (not the seller's current live commission rate)
+means the numbers still reconcile exactly even if that rate changes later — refunding every unit of an item always
+sums back to exactly the original commission, with round-half-up integer-cents arithmetic and zero drift (see
+`applyRatio` in `common/utils/money.ts`).
+
+**Remaining refundable quantity** is `item.quantity − Σ(quantity of that item's COMPLETED refunds)`, computed
+inside the same transaction that locks the SellerOrder row — a request for more than what remains is rejected
+(409) before any stock or ledger mutation. Refunded stock is restored by the same simple, explicit rule as
+cancellation (see `RESTORE_STOCK_ON_REFUND` in `refunds.service.ts`): a refunded unit always returns to sellable
+stock in this stage, deliberately not reason-dependent.
+
+### Refund idempotency
+
+`Refund` doubles as its own idempotency claim — a unique index on `(sellerOrderId, idempotencyKey)` means the
+`INSERT` itself is what makes a retried or truly concurrent duplicate request produce exactly one row, the same
+mechanism `CheckoutIdempotencyKey` uses in Stage 4: the amounts are computed *before* the insert (unlike checkout,
+nothing async needs to happen first), so a single insert both claims the key and records the completed refund.
+Verified with 5 simultaneous requests carrying the same `Idempotency-Key`: all resolve to the same single `Refund`
+id, with exactly one row persisted.
+
+### Cancellation vs. refund — two mechanisms that never cross-corrupt
+
+| | Cancellation | Partial refund |
+|---|---|---|
+| Scope | Entire SellerOrder | Specific `SellerOrderItem` + quantity |
+| When | Not yet shipped (`AWAITING_FULFILLMENT`/`PROCESSING`) | Shipped or later, not cancelled |
+| SellerOrder.status | → `CANCELLED` | Unchanged |
+| Reversal | 100% of subtotal/commission | Proportional to the refunded quantity |
+| Idempotency | SellerOrder row lock + status check | `Refund` row's own unique constraint |
+
+A refund attempt against an already-`CANCELLED` SellerOrder is rejected outright (`assertRefundable`), and a
+cancel attempt against a SellerOrder with existing partial refunds is impossible in practice — a SellerOrder only
+becomes refund-eligible once it's `PROCESSING` or later, which is already past the cancellation window. The two
+code paths never both try to reverse the same money.
+
+### Outbox events (Stage 5 additions)
+
+`SELLER_ORDER_STATUS_CHANGED`, `SELLER_ORDER_CANCELLED`, `ORDER_STATUS_CHANGED` (aggregate `SellerOrder`/`Order`)
+and `REFUND_CREATED` (aggregate `Refund`, routed to the same `notifications` queue as `Order` events) are written
+in the same transaction as the state change they describe, same as every other outbox event in this codebase —
+never published before commit. The `SellerOrder`-aggregate events route to the existing `seller-order-processing`
+consumer, which handles them as an idempotent observability hook (structured log + metric) rather than a state
+change: the transition already happened synchronously inside the request, so there's nothing left for the async
+consumer to *do* — but routing them through the same `ProcessedEvent`-deduplicated pipeline proves redelivery is
+still safe. (A `LEDGER_ADJUSTED` event was deliberately **not** added — there's no consumer that would act on it in
+this stage, and an event with no queue route just produces noisy "no route" log lines; ledger corrections are
+already fully traceable via `LedgerEntry.refundId`/`sellerOrderId`/`correlationId`.)
+
+### Consistency boundaries
+
+- **Strong (one Postgres transaction, same as Stage 4)**: status transitions, cancellation (stock restore + ledger
+  reversal + parent recompute), refund creation (calculation + ledger + stock restore + idempotency claim).
+- **Eventual (outbox → BullMQ, after commit)**: search index catching up to restored stock (`STOCK_CHANGED` →
+  the existing `search-sync` consumer, unchanged from Stage 4), Redis product/search cache invalidation.
+
 ## Project structure
 
 ```
@@ -574,6 +736,44 @@ run repeatedly — it promotes an existing user or creates one, never duplicates
   scenarios legitimately fire many requests from one IP in a short window; production's default throttle is
   unchanged.
 
-**Explicitly out of scope still** (see module/service comments for where each plugs in): `SellerOrder`
-cancellation/refund lifecycle beyond the initial split, advanced parent-`Order`-status aggregation from its
-`SellerOrder`s, live bidding, full WebSocket event rooms, review/dispute workflows, analytics.
+**Done (Stage 5):**
+
+- SellerOrder status lifecycle (`AWAITING_FULFILLMENT → PROCESSING → SHIPPED → DELIVERED`) enforced by one
+  centralized transition policy (`orders/domain/seller-order-status.policy.ts`), shared verbatim by the
+  seller-facing (`PATCH /seller/orders/:id/status`) and admin-facing (`PATCH /admin/seller-orders/:id/status`)
+  endpoints — admin privileges widen who can act, never what transitions are valid.
+- Parent `Order.status` is a pure derived aggregate (`orders/domain/order-aggregate-status.ts`) recomputed after
+  every SellerOrder change — new minimal status set (`NEW`/`PROCESSING`/`PARTIALLY_SHIPPED`/`SHIPPED`/
+  `PARTIALLY_COMPLETED`/`COMPLETED`/`PARTIALLY_CANCELLED`/`CANCELLED`) replacing Stage 4's payment-oriented one.
+- Independent SellerOrder cancellation (`POST .../cancel`, seller- and admin-facing) — one transaction, row-locked,
+  restores only that SellerOrder's stock, reverses only its ledger entries, and is idempotent under true
+  concurrency (verified: 5 simultaneous cancel requests on one SellerOrder restore stock and reverse the ledger
+  exactly once). Verified independently: cancelling one SellerOrder under a multi-seller Order never touches a
+  sibling's status, stock, or ledger.
+- Append-only financial corrections — `SELLER_EARNING_REVERSAL`/`PLATFORM_COMMISSION_REVERSAL` ledger entries,
+  never mutating or deleting the original `SALE_CREDIT`/`COMMISSION_DEBIT` rows; effective totals always derived
+  at read time (`orders/domain/financial-summary.ts`), never stored, so there's one source of truth.
+- Partial, item-level refunds (`POST /admin/seller-orders/:id/refunds`, admin-only) — server-computed
+  amount/commission/seller corrections from the immutable purchase snapshot (never the client, never current
+  product price), remaining-refundable-quantity validation, and stock restoration. `Refund` doubles as its own
+  Postgres-persisted idempotency claim (unique `(sellerOrderId, idempotencyKey)`) — verified safe under 5
+  simultaneous duplicate requests (exactly one `Refund` row) and rejects over-refunding with zero side effects.
+- New Stage 5 outbox events (`SELLER_ORDER_STATUS_CHANGED`, `SELLER_ORDER_CANCELLED`, `ORDER_STATUS_CHANGED`,
+  `REFUND_CREATED`) routed and consumed idempotently through the existing outbox → BullMQ → `ProcessedEvent`
+  pipeline; `STOCK_CHANGED` reuses Stage 4's search-sync path unchanged, so cancelled/refunded stock eventually
+  reflects in search the same way a checkout-driven stock change does.
+- New Prometheus counters: `seller_order_status_changes_total`, `seller_order_cancellations_total`,
+  `refunds_total`, `refund_failures_total`, `refund_amount_total` (cents).
+- Frontend: seller order-detail page gained status-advance/cancel actions; customer order-detail page shows the
+  derived parent status, per-item refunded quantities, and original/refunded/effective totals (still no
+  commission/payout visibility); admin order-detail page gained per-SellerOrder cancel and a partial-refund form
+  that only ever shows the backend-computed result, never accepts a typed amount.
+- 163 backend unit tests (up from 93) + 79 e2e tests (up from 61), including a dedicated lifecycle/cancellation/
+  refund e2e suite covering independent cancellation, cancellation idempotency under true concurrency, partial
+  refund calculation, refund idempotency (sequential and simultaneous), over-refund rejection, invalid transition
+  rejection, and IDOR across every new endpoint — all passing against live Postgres/Redis/Meilisearch.
+
+**Explicitly out of scope still** (see module/service comments for where each plugs in): full parent-`Order`
+cancellation/refund initiated *from* the parent (only per-SellerOrder actions exist), dispute-driven refunds
+(the `Refund.disputeId` column exists but is always null this stage), live bidding, full WebSocket event rooms,
+review/dispute workflows, analytics.

@@ -201,7 +201,7 @@ describe('CheckoutService', () => {
     ordersRepository.manager.getRepository.mockReturnValue(idempotencyKeyRepo);
     ordersRepository.findOne.mockResolvedValue({
       id: 'order-1',
-      status: 'PENDING_PAYMENT',
+      status: 'NEW',
       totalAmount: '20.00',
       sellerOrders: [],
     });

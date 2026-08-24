@@ -27,10 +27,11 @@ export class Order extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   totalAmount: string;
 
+  @Index()
   @Column({
     type: 'enum',
     enum: OrderStatus,
-    default: OrderStatus.PENDING_PAYMENT,
+    default: OrderStatus.NEW,
   })
   status: OrderStatus;
 

@@ -4,15 +4,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMySellerOrders } from '../../features/sellerOrders/hooks';
-
-const STATUS_TONE: Record<string, 'yellow' | 'blue' | 'coral' | 'mint' | 'neutral'> = {
-  AWAITING_FULFILLMENT: 'yellow',
-  PROCESSING: 'blue',
-  SHIPPED: 'blue',
-  DELIVERED: 'mint',
-  CANCELLED: 'coral',
-  REFUNDED: 'coral',
-};
+import { formatStatusLabel, SELLER_ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 
 export function SellerOrdersPage() {
   const { data, isLoading, isError } = useMySellerOrders();
@@ -38,8 +30,8 @@ export function SellerOrdersPage() {
                 </p>
               </div>
               <div className="flex items-center gap-4">
-                <Badge tone={STATUS_TONE[sellerOrder.status] ?? 'neutral'}>
-                  {sellerOrder.status.replace(/_/g, ' ')}
+                <Badge tone={SELLER_ORDER_STATUS_TONE[sellerOrder.status]}>
+                  {formatStatusLabel(sellerOrder.status)}
                 </Badge>
                 <div className="text-right">
                   <p className="font-semibold text-navy">${sellerOrder.sellerNetAmount} net</p>

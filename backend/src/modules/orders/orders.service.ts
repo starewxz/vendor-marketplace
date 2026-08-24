@@ -2,14 +2,20 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
+import { RefundStatus } from '../refunds/entities/refund-status.enum';
 import { OrderListQueryDto, PaginatedResult } from './dto/order-list-query.dto';
 import {
   CustomerOrderDetailView,
   CustomerOrderListItemView,
 } from './dto/customer-order-view';
+import {
+  deriveOrderFinancialSummary,
+  deriveSellerOrderFinancialSummary,
+} from './domain/financial-summary';
+import { refundedQuantityByItem } from './seller-orders.service';
 
 const DETAIL_RELATIONS = {
-  sellerOrders: { items: true, sellerProfile: true },
+  sellerOrders: { items: true, sellerProfile: true, refunds: true },
 } as const;
 
 /**
@@ -63,29 +69,57 @@ export class OrdersService {
       throw new NotFoundException(`Order ${id} not found`);
     }
 
+    const sellerOrderSummaries = order.sellerOrders.map((sellerOrder) => {
+      const completedRefunds = sellerOrder.refunds.filter(
+        (r) => r.status === RefundStatus.COMPLETED,
+      );
+      return {
+        sellerOrder,
+        completedRefunds,
+        financials: deriveSellerOrderFinancialSummary(
+          sellerOrder,
+          completedRefunds,
+        ),
+      };
+    });
+
+    const orderFinancials = deriveOrderFinancialSummary(
+      order.totalAmount,
+      sellerOrderSummaries.map((s) => s.financials),
+    );
+
     return {
       id: order.id,
       status: order.status,
-      totalAmount: order.totalAmount,
+      originalTotal: orderFinancials.originalTotal,
+      refundedTotal: orderFinancials.refundedTotal,
+      effectiveTotal: orderFinancials.effectiveTotal,
       createdAt: order.createdAt,
       shippingAddressLine1: order.shippingAddressLine1,
       shippingAddressLine2: order.shippingAddressLine2,
       shippingCity: order.shippingCity,
       shippingPostalCode: order.shippingPostalCode,
       shippingCountry: order.shippingCountry,
-      sellerOrders: order.sellerOrders.map((sellerOrder) => ({
-        id: sellerOrder.id,
-        storeName: sellerOrder.sellerProfile.storeName,
-        status: sellerOrder.status,
-        subtotal: sellerOrder.subtotal,
-        items: sellerOrder.items.map((item) => ({
-          productId: item.productId,
-          productName: item.productName,
-          unitPrice: item.unitPrice,
-          quantity: item.quantity,
-          lineTotal: item.lineTotal,
-        })),
-      })),
+      sellerOrders: sellerOrderSummaries.map(
+        ({ sellerOrder, completedRefunds, financials }) => {
+          const refundedQtyByItem = refundedQuantityByItem(completedRefunds);
+          return {
+            id: sellerOrder.id,
+            storeName: sellerOrder.sellerProfile.storeName,
+            status: sellerOrder.status,
+            subtotal: sellerOrder.subtotal,
+            refundedAmount: financials.refundedAmount,
+            items: sellerOrder.items.map((item) => ({
+              productId: item.productId,
+              productName: item.productName,
+              unitPrice: item.unitPrice,
+              quantity: item.quantity,
+              lineTotal: item.lineTotal,
+              refundedQuantity: refundedQtyByItem.get(item.id) ?? 0,
+            })),
+          };
+        },
+      ),
     };
   }
 }

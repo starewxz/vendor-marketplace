@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { PaginatedResult, SellerOrderDetailView, SellerOrderListItemView } from '../types/order';
+import type {
+  PaginatedResult,
+  SellerOrderDetailView,
+  SellerOrderListItemView,
+  SellerOrderStatus,
+} from '../types/order';
 
 export async function fetchMySellerOrders(
   page = 1,
@@ -13,5 +18,20 @@ export async function fetchMySellerOrders(
 
 export async function fetchMySellerOrder(id: string): Promise<SellerOrderDetailView> {
   const { data } = await apiClient.get<SellerOrderDetailView>(`/seller/orders/${id}`);
+  return data;
+}
+
+export async function updateMySellerOrderStatus(
+  id: string,
+  status: SellerOrderStatus,
+): Promise<SellerOrderDetailView> {
+  const { data } = await apiClient.patch<SellerOrderDetailView>(`/seller/orders/${id}/status`, {
+    status,
+  });
+  return data;
+}
+
+export async function cancelMySellerOrder(id: string): Promise<SellerOrderDetailView> {
+  const { data } = await apiClient.post<SellerOrderDetailView>(`/seller/orders/${id}/cancel`);
   return data;
 }

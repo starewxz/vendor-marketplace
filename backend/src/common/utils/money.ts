@@ -56,6 +56,24 @@ export function applyPercent(cents: bigint, percent: string): bigint {
   return roundHalfUpDivide(numerator, denominator);
 }
 
+/**
+ * `amountCents * numeratorCents / denominatorCents`, round-half-up. Used to
+ * carry a stored ratio (e.g. a SellerOrder's already-computed
+ * commission/subtotal split) forward onto a partial amount — a partial
+ * refund's commission correction is computed this way rather than
+ * re-applying the seller's *current* commission rate, so refund math still
+ * reconciles exactly even if the seller's rate changed since the sale.
+ * `denominatorCents === 0n` returns 0n rather than dividing by zero.
+ */
+export function applyRatio(
+  amountCents: bigint,
+  numeratorCents: bigint,
+  denominatorCents: bigint,
+): bigint {
+  if (denominatorCents === 0n) return 0n;
+  return roundHalfUpDivide(amountCents * numeratorCents, denominatorCents);
+}
+
 function roundHalfUpDivide(numerator: bigint, denominator: bigint): bigint {
   const quotient = numerator / denominator;
   const remainder = numerator % denominator;

@@ -11,6 +11,7 @@ import { Order } from './order.entity';
 import { SellerProfile } from '../../sellers/entities/seller-profile.entity';
 import { SellerOrderStatus } from './seller-order-status.enum';
 import { SellerOrderItem } from './seller-order-item.entity';
+import { Refund } from '../../refunds/entities/refund.entity';
 
 /**
  * One seller's slice of a multi-vendor Order. Holds the financial split
@@ -56,4 +57,7 @@ export class SellerOrder extends BaseEntity {
 
   @OneToMany(() => SellerOrderItem, (item) => item.sellerOrder)
   items: SellerOrderItem[];
+
+  @OneToMany(() => Refund, (refund) => refund.sellerOrder)
+  refunds: Refund[];
 }

@@ -1,21 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-
-export class AdminOrderItemView {
-  @ApiProperty()
-  productId: string | null;
-
-  @ApiProperty()
-  productName: string;
-
-  @ApiProperty()
-  unitPrice: string;
-
-  @ApiProperty()
-  quantity: number;
-
-  @ApiProperty()
-  lineTotal: string;
-}
+import {
+  SellerOrderFinancialSummaryView,
+  SellerOrderItemView,
+  SellerOrderRefundView,
+} from './seller-order-view';
 
 /** Full financial visibility — admin sees every seller's split on the order. */
 export class AdminSellerOrderView {
@@ -40,8 +28,14 @@ export class AdminSellerOrderView {
   @ApiProperty()
   sellerNetAmount: string;
 
-  @ApiProperty({ type: [AdminOrderItemView] })
-  items: AdminOrderItemView[];
+  @ApiProperty({ type: SellerOrderFinancialSummaryView })
+  financials: SellerOrderFinancialSummaryView;
+
+  @ApiProperty({ type: [SellerOrderItemView] })
+  items: SellerOrderItemView[];
+
+  @ApiProperty({ type: [SellerOrderRefundView] })
+  refunds: SellerOrderRefundView[];
 }
 
 export class AdminOrderListItemView {
@@ -75,7 +69,13 @@ export class AdminOrderDetailView {
   status: string;
 
   @ApiProperty()
-  totalAmount: string;
+  originalTotal: string;
+
+  @ApiProperty()
+  refundedTotal: string;
+
+  @ApiProperty()
+  effectiveTotal: string;
 
   @ApiProperty()
   createdAt: Date;

@@ -28,6 +28,13 @@ export class LedgerEntry extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   sellerOrderId: string | null;
 
+  // Set only for refund-driven correction entries (Stage 5) — lets a
+  // support/audit query find exactly which ledger rows one Refund produced,
+  // distinct from a full-cancellation reversal (which has no Refund row).
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  refundId: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   description: string | null;
 

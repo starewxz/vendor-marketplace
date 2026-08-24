@@ -4,6 +4,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrder } from '../../features/orders/hooks';
+import { formatStatusLabel, ORDER_STATUS_TONE, SELLER_ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +44,8 @@ export function OrderDetailPage() {
     .filter(Boolean)
     .join(', ');
 
+  const hasRefunds = order.originalTotal !== order.effectiveTotal;
+
   return (
     <div className="flex flex-col gap-4">
       {justPlaced && (
@@ -59,7 +62,7 @@ export function OrderDetailPage() {
           <h1 className="font-display text-2xl font-semibold text-navy">Order #{order.id.slice(0, 8)}</h1>
           <p className="text-sm text-navy/60">{new Date(order.createdAt).toLocaleString()}</p>
         </div>
-        <Badge tone="neutral">{order.status.replace(/_/g, ' ')}</Badge>
+        <Badge tone={ORDER_STATUS_TONE[order.status]}>{formatStatusLabel(order.status)}</Badge>
       </div>
 
       {address && (
@@ -74,7 +77,7 @@ export function OrderDetailPage() {
           <Card key={sellerOrder.id} className="p-5">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <p className="font-display font-semibold text-navy">{sellerOrder.storeName}</p>
-              <Badge tone="neutral">{sellerOrder.status.replace(/_/g, ' ')}</Badge>
+              <Badge tone={SELLER_ORDER_STATUS_TONE[sellerOrder.status]}>{formatStatusLabel(sellerOrder.status)}</Badge>
             </div>
             <div className="divide-y divide-line">
               {sellerOrder.items.map((item, i) => (
@@ -83,22 +86,44 @@ export function OrderDetailPage() {
                     <p className="font-medium text-navy">{item.productName}</p>
                     <p className="text-sm text-navy/60">
                       {item.quantity} × ${item.unitPrice}
+                      {item.refundedQuantity > 0 && (
+                        <span className="text-coral"> · {item.refundedQuantity} refunded</span>
+                      )}
                     </p>
                   </div>
                   <p className="font-semibold text-navy">${item.lineTotal}</p>
                 </div>
               ))}
             </div>
-            <div className="flex justify-end pt-3 text-sm font-semibold text-navy">
-              Subtotal: ${sellerOrder.subtotal}
+            <div className="flex flex-col items-end gap-1 pt-3 text-sm">
+              <span className="font-semibold text-navy">Subtotal: ${sellerOrder.subtotal}</span>
+              {Number(sellerOrder.refundedAmount) > 0 && (
+                <span className="text-coral">Refunded: −${sellerOrder.refundedAmount}</span>
+              )}
             </div>
           </Card>
         ))}
       </div>
 
-      <Card className="flex items-center justify-between p-5">
-        <p className="font-display text-lg font-semibold text-navy">Order total</p>
-        <p className="font-display text-xl font-semibold text-navy">${order.totalAmount}</p>
+      <Card className="flex flex-col gap-2 p-5">
+        {hasRefunds && (
+          <>
+            <div className="flex justify-between text-sm text-navy/60">
+              <span>Original total</span>
+              <span>${order.originalTotal}</span>
+            </div>
+            <div className="flex justify-between text-sm text-coral">
+              <span>Refunded</span>
+              <span>−${order.refundedTotal}</span>
+            </div>
+          </>
+        )}
+        <div className="flex items-center justify-between border-t border-line pt-2">
+          <p className="font-display text-lg font-semibold text-navy">
+            {hasRefunds ? 'Amount charged (after refunds)' : 'Order total'}
+          </p>
+          <p className="font-display text-xl font-semibold text-navy">${order.effectiveTotal}</p>
+        </div>
       </Card>
     </div>
   );

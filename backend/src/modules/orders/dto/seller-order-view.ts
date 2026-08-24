@@ -2,6 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class SellerOrderItemView {
   @ApiProperty()
+  id: string;
+
+  @ApiProperty()
   productId: string | null;
 
   @ApiProperty()
@@ -15,6 +18,70 @@ export class SellerOrderItemView {
 
   @ApiProperty()
   lineTotal: string;
+
+  @ApiProperty({
+    description: 'Sum of COMPLETED refund quantities against this line item',
+  })
+  refundedQuantity: number;
+}
+
+export class SellerOrderRefundView {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  sellerOrderItemId: string;
+
+  @ApiProperty()
+  quantity: number;
+
+  @ApiProperty()
+  amount: string;
+
+  @ApiProperty()
+  commissionAdjustment: string;
+
+  @ApiProperty()
+  sellerAdjustment: string;
+
+  @ApiProperty({ nullable: true })
+  reason: string | null;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty()
+  createdAt: Date;
+}
+
+/** See domain/financial-summary.ts — always derived, never stored. */
+export class SellerOrderFinancialSummaryView {
+  @ApiProperty()
+  originalSubtotal: string;
+
+  @ApiProperty()
+  originalCommission: string;
+
+  @ApiProperty()
+  originalSellerNet: string;
+
+  @ApiProperty()
+  refundedAmount: string;
+
+  @ApiProperty()
+  commissionReversed: string;
+
+  @ApiProperty()
+  sellerNetReversed: string;
+
+  @ApiProperty()
+  effectiveSubtotal: string;
+
+  @ApiProperty()
+  effectiveCommission: string;
+
+  @ApiProperty()
+  effectiveSellerNet: string;
 }
 
 export class SellerOrderListItemView {
@@ -62,11 +129,17 @@ export class SellerOrderDetailView {
   @ApiProperty()
   sellerNetAmount: string;
 
+  @ApiProperty({ type: SellerOrderFinancialSummaryView })
+  financials: SellerOrderFinancialSummaryView;
+
   @ApiProperty()
   createdAt: Date;
 
   @ApiProperty({ type: [SellerOrderItemView] })
   items: SellerOrderItemView[];
+
+  @ApiProperty({ type: [SellerOrderRefundView] })
+  refunds: SellerOrderRefundView[];
 
   // Needed for fulfillment — copied from the parent Order, which the
   // seller has no direct access to (only their own SellerOrder slice).

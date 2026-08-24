@@ -2,11 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SellerOrder } from './entities/seller-order.entity';
+import { Refund } from '../refunds/entities/refund.entity';
+import { RefundStatus } from '../refunds/entities/refund-status.enum';
 import { OrderListQueryDto, PaginatedResult } from './dto/order-list-query.dto';
 import {
   SellerOrderDetailView,
+  SellerOrderItemView,
   SellerOrderListItemView,
+  SellerOrderRefundView,
 } from './dto/seller-order-view';
+import { deriveSellerOrderFinancialSummary } from './domain/financial-summary';
+
+const DETAIL_RELATIONS = { items: true, order: true, refunds: true } as const;
 
 /**
  * Every read here is scoped by (id, sellerProfileId) together — a seller
@@ -56,32 +63,78 @@ export class SellerOrdersService {
   ): Promise<SellerOrderDetailView> {
     const sellerOrder = await this.sellerOrdersRepository.findOne({
       where: { id, sellerProfileId },
-      relations: { items: true, order: true },
+      relations: DETAIL_RELATIONS,
     });
     if (!sellerOrder) {
       throw new NotFoundException(`Seller order ${id} not found`);
     }
-
-    return {
-      id: sellerOrder.id,
-      orderId: sellerOrder.orderId,
-      status: sellerOrder.status,
-      subtotal: sellerOrder.subtotal,
-      commissionAmount: sellerOrder.commissionAmount,
-      sellerNetAmount: sellerOrder.sellerNetAmount,
-      createdAt: sellerOrder.createdAt,
-      items: sellerOrder.items.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        lineTotal: item.lineTotal,
-      })),
-      shippingAddressLine1: sellerOrder.order.shippingAddressLine1,
-      shippingAddressLine2: sellerOrder.order.shippingAddressLine2,
-      shippingCity: sellerOrder.order.shippingCity,
-      shippingPostalCode: sellerOrder.order.shippingPostalCode,
-      shippingCountry: sellerOrder.order.shippingCountry,
-    };
+    return buildSellerOrderDetailView(sellerOrder);
   }
+}
+
+/** Shared by SellerOrdersService and AdminSellerOrdersService — both build
+ * the same underlying view, admin's controller just adds a storeName. */
+export function buildSellerOrderDetailView(
+  sellerOrder: SellerOrder,
+): SellerOrderDetailView {
+  const completedRefunds = sellerOrder.refunds.filter(
+    (r) => r.status === RefundStatus.COMPLETED,
+  );
+  const refundedQtyByItem = refundedQuantityByItem(completedRefunds);
+
+  const items: SellerOrderItemView[] = sellerOrder.items.map((item) => ({
+    id: item.id,
+    productId: item.productId,
+    productName: item.productName,
+    unitPrice: item.unitPrice,
+    quantity: item.quantity,
+    lineTotal: item.lineTotal,
+    refundedQuantity: refundedQtyByItem.get(item.id) ?? 0,
+  }));
+
+  const refunds: SellerOrderRefundView[] = completedRefunds.map((r) => ({
+    id: r.id,
+    sellerOrderItemId: r.sellerOrderItemId,
+    quantity: r.quantity,
+    amount: r.amount,
+    commissionAdjustment: r.commissionAdjustment,
+    sellerAdjustment: r.sellerAdjustment,
+    reason: r.reason,
+    status: r.status,
+    createdAt: r.createdAt,
+  }));
+
+  return {
+    id: sellerOrder.id,
+    orderId: sellerOrder.orderId,
+    status: sellerOrder.status,
+    subtotal: sellerOrder.subtotal,
+    commissionAmount: sellerOrder.commissionAmount,
+    sellerNetAmount: sellerOrder.sellerNetAmount,
+    financials: deriveSellerOrderFinancialSummary(
+      sellerOrder,
+      completedRefunds,
+    ),
+    createdAt: sellerOrder.createdAt,
+    items,
+    refunds,
+    shippingAddressLine1: sellerOrder.order.shippingAddressLine1,
+    shippingAddressLine2: sellerOrder.order.shippingAddressLine2,
+    shippingCity: sellerOrder.order.shippingCity,
+    shippingPostalCode: sellerOrder.order.shippingPostalCode,
+    shippingCountry: sellerOrder.order.shippingCountry,
+  };
+}
+
+export function refundedQuantityByItem(
+  completedRefunds: Refund[],
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const refund of completedRefunds) {
+    map.set(
+      refund.sellerOrderItemId,
+      (map.get(refund.sellerOrderItemId) ?? 0) + refund.quantity,
+    );
+  }
+  return map;
 }

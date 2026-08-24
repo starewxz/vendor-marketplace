@@ -24,7 +24,7 @@ const BATCH_SIZE = 20;
  * already committed, so this failure never affects Postgres correctness.
  *
  * Routed by `event.aggregateType`: Product/Category go to SEARCH_SYNC,
- * SellerOrder goes to SELLER_ORDER_PROCESSING, Order goes to
+ * SellerOrder goes to SELLER_ORDER_PROCESSING, Order and Refund go to
  * NOTIFICATIONS. NOTIFICATIONS has no consumer yet (full notification UI
  * is out of this stage's scope) — jobs simply accumulate there, which is
  * harmless and easy to wire a consumer onto later.
@@ -50,6 +50,7 @@ export class OutboxPublisherService {
       Category: this.searchSyncQueue,
       SellerOrder: this.sellerOrderProcessingQueue,
       Order: this.notificationsQueue,
+      Refund: this.notificationsQueue,
     };
   }
 

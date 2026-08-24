@@ -38,7 +38,7 @@ describe('OrdersService — ownership scoping (IDOR)', () => {
     ordersRepository.findOne.mockResolvedValue({
       id: 'order-1',
       buyerId: 'customer-1',
-      status: 'PENDING_PAYMENT',
+      status: 'NEW',
       totalAmount: '20.00',
       createdAt: new Date(),
       shippingAddressLine1: null,
@@ -55,6 +55,7 @@ describe('OrdersService — ownership scoping (IDOR)', () => {
           sellerNetAmount: '18.00',
           sellerProfile: { storeName: 'Store' },
           items: [],
+          refunds: [],
         },
       ],
     });

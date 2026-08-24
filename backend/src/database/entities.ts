@@ -16,7 +16,7 @@ import { Bid } from '../modules/bidding/entities/bid.entity';
 import { LedgerEntry } from '../modules/payments-ledger/entities/ledger-entry.entity';
 import { Review } from '../modules/reviews/entities/review.entity';
 import { Dispute } from '../modules/disputes/entities/dispute.entity';
-import { Refund } from '../modules/disputes/entities/refund.entity';
+import { Refund } from '../modules/refunds/entities/refund.entity';
 import { OutboxEvent } from '../modules/outbox/entities/outbox-event.entity';
 import { ProcessedEvent } from '../modules/outbox/entities/processed-event.entity';
 

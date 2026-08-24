@@ -22,14 +22,22 @@ export interface SellerOrderProcessingJobData {
 
 /**
  * Consumer side of the outbox flow for SellerOrder events: OutboxEvent ->
- * BullMQ -> here. Only handles the initial AWAITING_FULFILLMENT ->
- * PROCESSING transition — fulfillment, shipping, and cancellation are out
- * of scope for this stage (see README "Scope").
+ * BullMQ -> here.
+ *
+ * SELLER_ORDER_CREATED drives the initial AWAITING_FULFILLMENT ->
+ * PROCESSING transition. SELLER_ORDER_STATUS_CHANGED/SELLER_ORDER_CANCELLED
+ * (Stage 5) don't need this consumer to change any state — the seller/admin
+ * endpoints that emit them already applied the transition synchronously,
+ * inside the same DB transaction — so here they're an observability hook
+ * only (structured log + metric), proving the same ProcessedEvent dedup
+ * that protects the state-changing path also makes a duplicate delivery of
+ * these a no-op rather than a double-counted metric.
  *
  * At-least-once + idempotent, same shape as SearchSyncProcessor: a
- * ProcessedEvent row short-circuits redelivery, and the status transition
- * itself only ever moves forward from AWAITING_FULFILLMENT, so replaying
- * an already-applied event is a safe no-op rather than a regression.
+ * ProcessedEvent row short-circuits redelivery, and the
+ * SELLER_ORDER_CREATED transition itself only ever moves forward from
+ * AWAITING_FULFILLMENT, so replaying an already-applied event is a safe
+ * no-op rather than a regression.
  */
 @Processor(QUEUE_NAMES.SELLER_ORDER_PROCESSING)
 export class SellerOrderProcessingProcessor extends WorkerHost {
@@ -83,6 +91,13 @@ export class SellerOrderProcessingProcessor extends WorkerHost {
     switch (eventType) {
       case 'SELLER_ORDER_CREATED':
         await this.startProcessing(aggregateId, correlationId);
+        return;
+      case 'SELLER_ORDER_STATUS_CHANGED':
+      case 'SELLER_ORDER_CANCELLED':
+        // State already changed synchronously — see class doc comment.
+        this.logger.log(
+          `[${correlationId}] observed ${eventType} for sellerOrderId=${aggregateId}`,
+        );
         return;
       default:
         this.logger.warn(

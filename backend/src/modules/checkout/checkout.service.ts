@@ -190,7 +190,7 @@ export class CheckoutService {
       manager.create(Order, {
         buyerId: customerId,
         totalAmount: formatCentsToMoney(totalCents),
-        status: OrderStatus.PENDING_PAYMENT,
+        status: OrderStatus.NEW,
         shippingAddressLine1: dto.shippingAddressLine1 ?? null,
         shippingAddressLine2: dto.shippingAddressLine2 ?? null,
         shippingCity: dto.shippingCity ?? null,

@@ -47,6 +47,7 @@ describe('SellerOrdersService — ownership scoping (IDOR)', () => {
       sellerNetAmount: '18.00',
       createdAt: new Date(),
       items: [],
+      refunds: [],
       order: {
         shippingAddressLine1: null,
         shippingAddressLine2: null,

@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 /**
  * Deliberately omits commissionAmount/sellerNetAmount — that split is
  * platform/seller financial detail, not something the buyer needs to see.
- * The buyer only ever sees what they paid.
+ * The buyer only ever sees what they paid and what they got back.
  */
 export class CustomerOrderItemView {
   @ApiProperty()
@@ -20,6 +20,9 @@ export class CustomerOrderItemView {
 
   @ApiProperty()
   lineTotal: string;
+
+  @ApiProperty({ description: 'Quantity of this line item refunded so far' })
+  refundedQuantity: number;
 }
 
 export class CustomerSellerOrderView {
@@ -34,6 +37,9 @@ export class CustomerSellerOrderView {
 
   @ApiProperty()
   subtotal: string;
+
+  @ApiProperty({ description: 'Total refunded/reversed for this seller order' })
+  refundedAmount: string;
 
   @ApiProperty({ type: [CustomerOrderItemView] })
   items: CustomerOrderItemView[];
@@ -60,11 +66,20 @@ export class CustomerOrderDetailView {
   @ApiProperty()
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Aggregate status derived from every SellerOrder under this Order — see README "Parent Order aggregation".',
+  })
   status: string;
 
   @ApiProperty()
-  totalAmount: string;
+  originalTotal: string;
+
+  @ApiProperty()
+  refundedTotal: string;
+
+  @ApiProperty()
+  effectiveTotal: string;
 
   @ApiProperty()
   createdAt: Date;

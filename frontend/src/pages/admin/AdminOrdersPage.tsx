@@ -4,14 +4,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useAllOrders } from '../../features/adminOrders/hooks';
-
-const STATUS_TONE: Record<string, 'yellow' | 'blue' | 'coral' | 'mint' | 'neutral'> = {
-  PENDING_PAYMENT: 'yellow',
-  PAID: 'blue',
-  PARTIALLY_FULFILLED: 'blue',
-  FULFILLED: 'mint',
-  CANCELLED: 'coral',
-};
+import { formatStatusLabel, ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 
 export function AdminOrdersPage() {
   const { data, isLoading, isError } = useAllOrders();
@@ -38,7 +31,7 @@ export function AdminOrdersPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Badge tone={STATUS_TONE[order.status] ?? 'neutral'}>{order.status.replace(/_/g, ' ')}</Badge>
+                <Badge tone={ORDER_STATUS_TONE[order.status]}>{formatStatusLabel(order.status)}</Badge>
                 <p className="font-semibold text-navy">${order.totalAmount}</p>
               </div>
             </Card>
