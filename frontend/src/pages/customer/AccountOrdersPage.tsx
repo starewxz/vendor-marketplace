@@ -5,9 +5,11 @@ import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrders } from '../../features/orders/hooks';
 import { formatStatusLabel, ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
+import { useOrderRealtime } from '../../realtime/hooks/useOrderRealtime';
 
 export function AccountOrdersPage() {
   const { data, isLoading, isError } = useMyOrders();
+  useOrderRealtime();
 
   return (
     <div className="flex flex-col gap-4">

@@ -5,13 +5,16 @@ import { queryClient } from './queryClient';
 import { router } from '../routes/router';
 import { AuthProvider } from '../features/auth/AuthContext';
 import { ErrorBoundary } from './ErrorBoundary';
+import { RealtimeProvider } from '../realtime/RealtimeProvider';
 
 export function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <RealtimeProvider>
+            <RouterProvider router={router} />
+          </RealtimeProvider>
         </AuthProvider>
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>

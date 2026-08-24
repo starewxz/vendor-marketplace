@@ -17,7 +17,8 @@ export function useProductAuction(productId?: string) {
     queryKey: ['auction', 'product', productId],
     queryFn: () => fetchProductAuction(productId!),
     enabled: !!productId,
-    refetchInterval: 5_000,
+    // WebSocket is primary; this slower poll is only a graceful fallback.
+    refetchInterval: 60_000,
   });
 }
 
@@ -26,7 +27,7 @@ export function useBidHistory(auctionId?: string) {
     queryKey: ['auction', auctionId, 'bids'],
     queryFn: () => fetchBidHistory(auctionId!),
     enabled: !!auctionId,
-    refetchInterval: 5_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -35,7 +36,7 @@ export function useWinnerState(auctionId?: string, enabled = false) {
     queryKey: ['auction', auctionId, 'winner-state'],
     queryFn: () => fetchWinnerState(auctionId!),
     enabled: !!auctionId && enabled,
-    refetchInterval: 5_000,
+    refetchInterval: 60_000,
   });
 }
 

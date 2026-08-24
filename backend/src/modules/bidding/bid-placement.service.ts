@@ -149,10 +149,10 @@ export class BidPlacementService {
     // 2. Self-heal SCHEDULED -> ACTIVE if the bidding window has opened
     // since the last time anything observed this row — correctness never
     // depends on a separate "start" job having already run.
-    if (
+    const activatedNow =
       auction.status === AuctionStatus.SCHEDULED &&
-      isWithinBiddingWindow(auction.startsAt, auction.endsAt, now)
-    ) {
+      isWithinBiddingWindow(auction.startsAt, auction.endsAt, now);
+    if (activatedNow) {
       auction.status = AuctionStatus.ACTIVE;
     }
 
@@ -217,6 +217,16 @@ export class BidPlacementService {
     auction.winnerId = bidderId;
     auction.winningBidId = bid.id;
     await manager.save(auction);
+
+    if (activatedNow) {
+      await this.outboxService.record(manager, {
+        eventType: 'AUCTION_STARTED',
+        aggregateType: 'Auction',
+        aggregateId: auction.id,
+        payload: { auctionId: auction.id, productId: auction.productId },
+        correlationId,
+      });
+    }
 
     // 8. Outbox event, same transaction — never published to BullMQ/Redis
     // until after commit (see OutboxPublisherService).

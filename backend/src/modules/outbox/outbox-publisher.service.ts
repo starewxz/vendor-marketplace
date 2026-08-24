@@ -24,8 +24,9 @@ const BATCH_SIZE = 20;
  * already committed, so this failure never affects Postgres correctness.
  *
  * Routed by `event.aggregateType`: Product/Category go to SEARCH_SYNC,
- * SellerOrder goes to SELLER_ORDER_PROCESSING, Order/Refund/Auction go to
- * NOTIFICATIONS. NOTIFICATIONS has no consumer yet (full notification UI
+ * SellerOrder goes to SELLER_ORDER_PROCESSING, and lifecycle aggregates go
+ * to NOTIFICATIONS. State-bearing Product, SellerOrder, Order, Refund, and
+ * Auction events are also fanned out to REALTIME. NOTIFICATIONS has no consumer yet (full notification UI
  * is out of this stage's scope) — jobs simply accumulate there, which is
  * harmless and easy to wire a consumer onto later. Auction's own state
  * transitions (BID_PLACED, AUCTION_WON, AUCTION_PURCHASED, ...) are never
@@ -38,7 +39,7 @@ const BATCH_SIZE = 20;
 export class OutboxPublisherService {
   private readonly logger = new Logger(OutboxPublisherService.name);
   private isPolling = false;
-  private readonly queuesByAggregateType: Record<string, Queue>;
+  private readonly queuesByAggregateType: Record<string, Queue[]>;
 
   constructor(
     @InjectRepository(OutboxEvent)
@@ -49,14 +50,17 @@ export class OutboxPublisherService {
     private readonly sellerOrderProcessingQueue: Queue,
     @InjectQueue(QUEUE_NAMES.NOTIFICATIONS)
     private readonly notificationsQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.REALTIME)
+    private readonly realtimeQueue: Queue,
   ) {
     this.queuesByAggregateType = {
-      Product: this.searchSyncQueue,
-      Category: this.searchSyncQueue,
-      SellerOrder: this.sellerOrderProcessingQueue,
-      Order: this.notificationsQueue,
-      Refund: this.notificationsQueue,
-      Auction: this.notificationsQueue,
+      Product: [this.searchSyncQueue, this.realtimeQueue],
+      Category: [this.searchSyncQueue],
+      SellerOrder: [this.sellerOrderProcessingQueue, this.realtimeQueue],
+      Order: [this.notificationsQueue, this.realtimeQueue],
+      Refund: [this.notificationsQueue, this.realtimeQueue],
+      Auction: [this.notificationsQueue, this.realtimeQueue],
+      SellerApplication: [this.notificationsQueue],
     };
   }
 
@@ -87,8 +91,8 @@ export class OutboxPublisherService {
         .getMany();
 
       for (const event of events) {
-        const queue = this.queuesByAggregateType[event.aggregateType];
-        if (!queue) {
+        const queues = this.queuesByAggregateType[event.aggregateType];
+        if (!queues) {
           event.attempts += 1;
           event.lastError = `No queue routed for aggregateType "${event.aggregateType}"`;
           await manager.save(event);
@@ -98,26 +102,29 @@ export class OutboxPublisherService {
           continue;
         }
         try {
-          await queue.add(
-            event.eventType,
-            {
-              outboxEventId: event.id,
-              eventType: event.eventType,
-              aggregateType: event.aggregateType,
-              aggregateId: event.aggregateId,
-              payload: event.payload,
-              correlationId: event.correlationId,
-            },
-            {
-              // Same id as the row itself — BullMQ treats a duplicate
-              // add() with an existing jobId as a no-op, so a publisher
-              // retrying a row it isn't sure got enqueued can't double-add.
-              jobId: event.id,
-              attempts: 5,
-              backoff: { type: 'exponential', delay: 2000 },
-              removeOnComplete: 1000,
-              removeOnFail: 1000,
-            },
+          await Promise.all(
+            queues.map((queue) =>
+              queue.add(
+                event.eventType,
+                {
+                  outboxEventId: event.id,
+                  eventType: event.eventType,
+                  aggregateType: event.aggregateType,
+                  aggregateId: event.aggregateId,
+                  payload: event.payload,
+                  correlationId: event.correlationId,
+                },
+                {
+                  // The same id is safe across different queues, while a
+                  // retry within one queue is deduplicated by BullMQ.
+                  jobId: event.id,
+                  attempts: 5,
+                  backoff: { type: 'exponential', delay: 2000 },
+                  removeOnComplete: 1000,
+                  removeOnFail: 1000,
+                },
+              ),
+            ),
           );
 
           event.status = OutboxStatus.PUBLISHED;

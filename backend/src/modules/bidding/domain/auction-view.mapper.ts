@@ -43,6 +43,7 @@ export function toPublicView(
     status: effectiveStatus,
     bidCount,
     purchaseWindowEndsAt: auction.purchaseWindowEndsAt,
+    updatedAt: auction.updatedAt,
   };
 }
 

@@ -8,7 +8,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG VITE_API_URL
+ARG VITE_SOCKET_URL
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime

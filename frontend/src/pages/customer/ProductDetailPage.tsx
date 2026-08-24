@@ -9,6 +9,7 @@ import { useAddCartItem } from '../../features/cart/hooks';
 import { useAuth } from '../../features/auth/useAuth';
 import { getApiErrorMessage } from '../../api/error';
 import { AuctionPanel } from '../../components/auction/AuctionPanel';
+import { useProductRealtime } from '../../realtime/hooks/useProductRealtime';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ export function ProductDetailPage() {
   const addToCart = useAddCartItem();
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState(false);
+  useProductRealtime(id);
 
   if (isLoading) {
     return (

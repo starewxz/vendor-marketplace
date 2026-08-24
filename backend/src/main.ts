@@ -7,6 +7,8 @@ import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfig } from './common/config/configuration';
+import { MetricsRegistryService } from './modules/metrics/metrics-registry.service';
+import { RedisIoAdapter } from './websocket/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -14,6 +16,14 @@ async function bootstrap() {
   const configService = app.get(ConfigService<AppConfig, true>);
   const logger = app.get(Logger);
   app.useLogger(logger);
+
+  const socketAdapter = new RedisIoAdapter(
+    app,
+    configService.get('redis.url', { infer: true }),
+    app.get(MetricsRegistryService),
+  );
+  await socketAdapter.connectToRedis();
+  app.useWebSocketAdapter(socketAdapter);
 
   const apiPrefix = configService.get('apiPrefix', { infer: true });
   app.setGlobalPrefix(apiPrefix);

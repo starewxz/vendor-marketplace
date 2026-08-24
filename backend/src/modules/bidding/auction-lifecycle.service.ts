@@ -73,6 +73,54 @@ export class AuctionLifecycleService {
   ) {}
 
   // ---------------------------------------------------------------------
+  // Activation: SCHEDULED -> ACTIVE
+  // ---------------------------------------------------------------------
+
+  async activateAuction(
+    auctionId: string,
+    correlationId: string,
+  ): Promise<void> {
+    const outcome = await this.auctionsRepository.manager.transaction(
+      async (manager) => {
+        const auction = await manager.findOne(Auction, {
+          where: { id: auctionId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (
+          !auction ||
+          auction.status !== AuctionStatus.SCHEDULED ||
+          Date.now() < auction.startsAt.getTime() ||
+          Date.now() >= auction.endsAt.getTime()
+        ) {
+          return { touched: false, productId: auction?.productId ?? null };
+        }
+
+        assertValidAuctionTransition(auction.status, AuctionStatus.ACTIVE);
+        auction.status = AuctionStatus.ACTIVE;
+        await manager.save(auction);
+        await this.outboxService.record(manager, {
+          eventType: 'AUCTION_STARTED',
+          aggregateType: 'Auction',
+          aggregateId: auction.id,
+          payload: { auctionId: auction.id, productId: auction.productId },
+          correlationId,
+        });
+        await this.recordProductProjectionEvent(
+          manager,
+          auction,
+          correlationId,
+        );
+        this.logger.log(`[${correlationId}] auction ${auction.id} activated`);
+        return { touched: true, productId: auction.productId };
+      },
+    );
+    if (outcome.touched && outcome.productId) {
+      await this.cache.invalidateProduct(outcome.productId);
+      await this.cache.invalidateSearch();
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // BullMQ scheduling
   // ---------------------------------------------------------------------
 

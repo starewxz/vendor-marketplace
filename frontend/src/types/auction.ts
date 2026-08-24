@@ -22,6 +22,7 @@ export interface AuctionView {
   status: AuctionStatus;
   bidCount: number;
   purchaseWindowEndsAt: string | null;
+  updatedAt: string;
 }
 
 export interface SellerAuction extends AuctionView {

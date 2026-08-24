@@ -12,6 +12,7 @@ import {
 } from '../../features/sellerOrders/hooks';
 import { formatStatusLabel, isCancellable, nextStatusAction, SELLER_ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
 import { getApiErrorMessage } from '../../api/error';
+import { useOrderRealtime } from '../../realtime/hooks/useOrderRealtime';
 
 export function SellerOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export function SellerOrderDetailPage() {
   const updateStatus = useUpdateMySellerOrderStatus(id ?? '');
   const cancelOrder = useCancelMySellerOrder(id ?? '');
   const [actionError, setActionError] = useState<string | null>(null);
+  useOrderRealtime({ sellerOrderId: id });
 
   if (isLoading) {
     return (

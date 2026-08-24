@@ -9,6 +9,7 @@ import { SellerOrder } from '../orders/entities/seller-order.entity';
 import { SellerOrderStatus } from '../orders/entities/seller-order-status.enum';
 import { MetricsRegistryService } from '../metrics/metrics-registry.service';
 import { isUniqueViolation } from '../../common/utils/slug';
+import { OutboxService } from '../outbox/outbox.service';
 
 const CONSUMER_NAME = 'seller-order-processing';
 
@@ -49,6 +50,7 @@ export class SellerOrderProcessingProcessor extends WorkerHost {
     @InjectRepository(SellerOrder)
     private readonly sellerOrdersRepository: Repository<SellerOrder>,
     private readonly metrics: MetricsRegistryService,
+    private readonly outboxService: OutboxService,
   ) {
     super();
   }
@@ -110,27 +112,43 @@ export class SellerOrderProcessingProcessor extends WorkerHost {
     sellerOrderId: string,
     correlationId: string,
   ): Promise<void> {
-    const sellerOrder = await this.sellerOrdersRepository.findOne({
-      where: { id: sellerOrderId },
-    });
-    if (!sellerOrder) {
-      // Redelivered after the order was somehow removed, or the event
-      // arrived before the transaction that created it became visible to
-      // this connection — either way there's nothing to transition.
-      this.logger.warn(
-        `[${correlationId}] seller order processing found no SellerOrder id=${sellerOrderId}, skipping`,
-      );
-      return;
-    }
-    if (sellerOrder.status !== SellerOrderStatus.AWAITING_FULFILLMENT) {
-      this.logger.log(
-        `[${correlationId}] seller order ${sellerOrderId} already past AWAITING_FULFILLMENT (status=${sellerOrder.status}), skipping`,
-      );
-      return;
-    }
+    const changed = await this.sellerOrdersRepository.manager.transaction(
+      async (manager) => {
+        const sellerOrder = await manager.findOne(SellerOrder, {
+          where: { id: sellerOrderId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!sellerOrder) {
+          this.logger.warn(
+            `[${correlationId}] seller order processing found no SellerOrder id=${sellerOrderId}, skipping`,
+          );
+          return false;
+        }
+        if (sellerOrder.status !== SellerOrderStatus.AWAITING_FULFILLMENT) {
+          this.logger.log(
+            `[${correlationId}] seller order ${sellerOrderId} already past AWAITING_FULFILLMENT (status=${sellerOrder.status}), skipping`,
+          );
+          return false;
+        }
 
-    sellerOrder.status = SellerOrderStatus.PROCESSING;
-    await this.sellerOrdersRepository.save(sellerOrder);
+        sellerOrder.status = SellerOrderStatus.PROCESSING;
+        await manager.save(sellerOrder);
+        await this.outboxService.record(manager, {
+          eventType: 'SELLER_ORDER_STATUS_CHANGED',
+          aggregateType: 'SellerOrder',
+          aggregateId: sellerOrder.id,
+          payload: {
+            sellerOrderId: sellerOrder.id,
+            orderId: sellerOrder.orderId,
+            from: SellerOrderStatus.AWAITING_FULFILLMENT,
+            to: SellerOrderStatus.PROCESSING,
+          },
+          correlationId,
+        });
+        return true;
+      },
+    );
+    if (!changed) return;
     this.metrics.increment('seller_orders_processed_total');
     this.logger.log(
       `[${correlationId}] seller order ${sellerOrderId} transitioned to PROCESSING`,

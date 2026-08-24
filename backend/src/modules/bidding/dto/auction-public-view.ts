@@ -45,6 +45,9 @@ export class AuctionPublicView {
 
   @ApiProperty({ nullable: true })
   purchaseWindowEndsAt: Date | null;
+
+  @ApiProperty()
+  updatedAt: Date;
 }
 
 export class AuctionWinnerStateView {

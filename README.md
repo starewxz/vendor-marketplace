@@ -1,11 +1,11 @@
 # Cargo Crew — Multi-Vendor Marketplace
 
 A general-purpose, high-volume multi-vendor marketplace (think: many independent sellers, fixed-price and auction
-listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–6**: foundation +
-architecture, auth + seller moderation, catalog + search, cart/checkout/orders, and the seller-order lifecycle
-(status progression, independent cancellation, partial refunds) (see
+listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–7**: foundation +
+architecture, auth + seller moderation, catalog + search, cart/checkout/orders, seller-order lifecycle,
+auctions, and post-commit realtime delivery with reconnect/resync (see
 [Current implementation status](#current-implementation-status)) — a production-minded build-out, not a finished
-product. Reviews, disputes, analytics, and full realtime notifications are still ahead.
+product. Reviews, disputes, and final analytics are still ahead.
 
 ## Table of contents
 
@@ -16,6 +16,7 @@ product. Reviews, disputes, analytics, and full realtime notifications are still
 - [Catalog & search (Stage 3)](#catalog--search-stage-3)
 - [Cart, checkout & orders (Stage 4)](#cart-checkout--orders-stage-4)
 - [Seller order lifecycle, cancellation & refunds (Stage 5)](#seller-order-lifecycle-cancellation--refunds-stage-5)
+- [Realtime protocol (Stage 7)](#realtime-protocol-stage-7)
 - [Project structure](#project-structure)
 - [Development setup](#development-setup)
 - [Docker setup](#docker-setup)
@@ -105,7 +106,7 @@ flowchart TB
   concerns out of domain services. `synchronize` is hard-disabled; schema changes are always explicit migrations.
 - **BullMQ + Redis** — a mature, Redis-backed job queue with retries, backoff, and delayed jobs, used as the
   transport for everything downstream of the transactional outbox (search sync, notifications, seller-order
-  processing, auction finalization). Redis doubles as the Socket.IO adapter backing store in later stages.
+  processing, auction finalization). Redis also backs the Socket.IO adapter so room broadcasts span backend replicas.
 - **Meilisearch** — fast, typo-tolerant search with a much lower operational footprint than Elasticsearch/OpenSearch
   for a marketplace of this scale, and a simple HTTP API that's easy to abstract behind a port interface.
 - **Modular monolith over microservices** — see [Architecture](#architecture) above.
@@ -775,8 +776,7 @@ run repeatedly — it promotes an existing user or creates one, never duplicates
 
 **Explicitly out of scope still** (see module/service comments for where each plugs in): full parent-`Order`
 cancellation/refund initiated *from* the parent (only per-SellerOrder actions exist), dispute-driven refunds
-(the `Refund.disputeId` column exists but is always null this stage), full WebSocket event rooms,
-review/dispute workflows, analytics.
+(the `Refund.disputeId` column exists but is always null this stage), review/dispute workflows, and final analytics.
 
 **Done (Stage 6):**
 
@@ -822,5 +822,57 @@ sequenceDiagram
 ```
 
 The deadline uses application-server time captured only after the row lock is held. Consequently, a request that
-arrived before `endsAt` but acquires the lock at or after it is rejected. Stage 7 will add Socket.IO delivery and
-reconnect/resync; Stage 6 intentionally uses five-second TanStack Query polling.
+arrived before `endsAt` but acquires the lock at or after it is rejected. Stage 7 keeps a low-frequency REST polling
+fallback while Socket.IO is the primary update mechanism.
+
+## Realtime protocol (Stage 7)
+
+PostgreSQL remains authoritative. Domain transactions write Outbox rows; the publisher fans committed events to a
+dedicated `realtime` BullMQ queue; an idempotent consumer re-fetches current database state before asking the thin
+gateway to emit it. No business service emits a socket event before commit, and sockets expose no mutation commands.
+The Redis Socket.IO adapter is installed before the HTTP/socket server starts, so room memberships are never created
+on a temporary in-memory adapter during startup. If that adapter cannot connect, startup falls back to single-instance
+socket delivery while REST remains usable and the failure is logged/metered.
+
+```text
+PostgreSQL transaction + OutboxEvent
+        → COMMIT
+        → OutboxPublisher
+        → BullMQ realtime queue
+        → ProcessedEvent-aware consumer
+        → Socket.IO room (Redis adapter)
+```
+
+Connect to `VITE_SOCKET_URL` (normally the backend origin) with optional access-token auth:
+
+```ts
+io(socketUrl, { auth: { token: accessToken } })
+```
+
+No token creates a public-only session. A supplied invalid or expired token rejects the connection; it never silently
+downgrades to public. Authenticated sockets automatically join `user:{userId}` and approved sellers also join
+`seller:{sellerProfileId}`. Identity and role are reloaded from PostgreSQL, never accepted from the handshake payload.
+
+| Client message | Authorization | Resulting room |
+|---|---|---|
+| `subscribe:product { id }` / `unsubscribe:product` | Public, existing published product | `product:{productId}` |
+| `subscribe:auction { id }` / `unsubscribe:auction` | Public, existing auction | `auction:{auctionId}` |
+| `subscribe:order { id }` / `unsubscribe:order` | Owning customer or admin only | `order:{orderId}` |
+
+Arbitrary user or seller room subscriptions do not exist. Sellers receive only their own private stream through the
+server-derived automatic seller room.
+
+| Server event | Audience | Minimal authoritative payload |
+|---|---|---|
+| `product.stock.updated` | Product room | product id, current stock, updated timestamp |
+| `auction.bid.updated` | Auction room | current price, minimum next bid, bid count, deadline/status |
+| `auction.started/finalized/won/unsold` | Auction room | current public auction state |
+| `auction.purchase_window.opened/purchased/expired` | Auction room | current public auction state/window timestamps |
+| `order.status.updated` | Owning user, owning seller, authorized order room | parent and seller-order ids/statuses, timestamp |
+
+The shared frontend socket reconnects with bounded Socket.IO backoff, updates authentication whenever the in-memory
+access token changes, and re-subscribes mounted product/auction/order hooks after reconnect. Crucially, reconnect does
+not attempt event replay: TanStack Query invalidates active catalog/product/auction and role-relevant order/dashboard
+queries, refetching REST state before continuing live updates. Duplicate messages are safe cache updates, and payload
+timestamps prevent an older stock/auction event from overwriting newer cached state. If Redis or WebSockets are down,
+all REST flows continue working; the auction view retains a low-frequency REST fallback.

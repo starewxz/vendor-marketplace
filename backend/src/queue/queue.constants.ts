@@ -9,6 +9,7 @@ export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications',
   SELLER_ORDER_PROCESSING: 'seller-order-processing',
   AUCTION_FINALIZATION: 'auction-finalization',
+  REALTIME: 'realtime',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

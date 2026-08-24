@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Interval } from '@nestjs/schedule';
-import { In, LessThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { Auction } from './entities/auction.entity';
 import { AuctionStatus } from './entities/auction-status.enum';
 import { AuctionLifecycleService } from './auction-lifecycle.service';
@@ -35,6 +35,7 @@ export class AuctionReconciliationService {
     if (this.isRunning) return;
     this.isRunning = true;
     try {
+      await this.reconcileStartedAuctions();
       await this.reconcileOverdueFinalizations();
       await this.reconcileExpiredPurchaseWindows();
     } catch (error) {
@@ -43,6 +44,21 @@ export class AuctionReconciliationService {
       );
     } finally {
       this.isRunning = false;
+    }
+  }
+
+  private async reconcileStartedAuctions(): Promise<void> {
+    const now = new Date();
+    const started = await this.auctionsRepository.find({
+      where: {
+        status: AuctionStatus.SCHEDULED,
+        startsAt: LessThanOrEqual(now),
+        endsAt: MoreThan(now),
+      },
+      take: BATCH_SIZE,
+    });
+    for (const auction of started) {
+      await this.lifecycle.activateAuction(auction.id, randomUUID());
     }
   }
 

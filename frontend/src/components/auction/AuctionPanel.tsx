@@ -13,6 +13,8 @@ import {
   useProductAuction,
   useWinnerState,
 } from '../../features/auctions/hooks';
+import { useAuctionRealtime } from '../../realtime/hooks/useAuctionRealtime';
+import { useRealtime } from '../../realtime/useRealtime';
 
 function remainingLabel(target: string, now: number) {
   const seconds = Math.max(0, Math.floor((new Date(target).getTime() - now) / 1000));
@@ -35,6 +37,8 @@ export function AuctionPanel({ productId }: { productId: string }) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(0);
+  const { status: realtimeStatus } = useRealtime();
+  useAuctionRealtime(auction?.id, productId);
 
   useEffect(() => {
     const immediate = window.setTimeout(() => setNow(Date.now()), 0);
@@ -82,11 +86,20 @@ export function AuctionPanel({ productId }: { productId: string }) {
     <section className="overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-sm">
       <div className="bg-sunny px-5 py-4 text-navy">
         <div className="flex items-center justify-between gap-3">
-          <Badge tone={auction.status === 'ACTIVE' ? 'coral' : 'neutral'}>
-            {auction.status === 'ACTIVE'
-              ? 'Live auction'
-              : auction.status.replaceAll('_', ' ')}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge tone={auction.status === 'ACTIVE' ? 'coral' : 'neutral'}>
+              {auction.status === 'ACTIVE'
+                ? 'Live auction'
+                : auction.status.replaceAll('_', ' ')}
+            </Badge>
+            <span className="text-xs font-medium text-navy/55">
+              {realtimeStatus === 'live'
+                ? '● Live updates'
+                : realtimeStatus === 'reconnecting' || realtimeStatus === 'connecting'
+                  ? '○ Reconnecting…'
+                  : '○ Offline — updates may be delayed'}
+            </span>
+          </div>
           <span className="font-mono text-sm font-semibold">{clock}</span>
         </div>
         <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-navy/55">Current bid</p>

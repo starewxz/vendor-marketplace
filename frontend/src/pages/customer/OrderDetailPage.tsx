@@ -5,12 +5,14 @@ import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrder } from '../../features/orders/hooks';
 import { formatStatusLabel, ORDER_STATUS_TONE, SELLER_ORDER_STATUS_TONE } from '../../features/sellerOrders/status';
+import { useOrderRealtime } from '../../realtime/hooks/useOrderRealtime';
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError } = useMyOrder(id);
   const location = useLocation();
   const justPlaced = Boolean((location.state as { justPlaced?: boolean } | null)?.justPlaced);
+  useOrderRealtime({ orderId: id });
 
   if (isLoading) {
     return (

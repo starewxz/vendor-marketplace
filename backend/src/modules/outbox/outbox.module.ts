@@ -14,6 +14,7 @@ import { QUEUE_NAMES } from '../../queue/queue.constants';
       { name: QUEUE_NAMES.SEARCH_SYNC },
       { name: QUEUE_NAMES.SELLER_ORDER_PROCESSING },
       { name: QUEUE_NAMES.NOTIFICATIONS },
+      { name: QUEUE_NAMES.REALTIME },
     ),
   ],
   providers: [OutboxService, OutboxPublisherService],
