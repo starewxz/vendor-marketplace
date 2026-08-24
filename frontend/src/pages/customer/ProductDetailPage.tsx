@@ -8,6 +8,7 @@ import { useProduct } from '../../features/catalog/useProduct';
 import { useAddCartItem } from '../../features/cart/hooks';
 import { useAuth } from '../../features/auth/useAuth';
 import { getApiErrorMessage } from '../../api/error';
+import { AuctionPanel } from '../../components/auction/AuctionPanel';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,12 +90,7 @@ export function ProductDetailPage() {
         <p className="text-xs text-navy/40">{product.stockQuantity} in stock</p>
 
         {isAuction ? (
-          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-line bg-cream/40 p-4">
-            <p className="text-sm font-medium text-navy">Bidding isn't open yet</p>
-            <p className="text-xs text-navy/60">
-              This is an auction listing — live bidding, current price, and time remaining land in a later stage.
-            </p>
-          </div>
+          <AuctionPanel productId={product.id} />
         ) : isAuthenticated && user?.role !== 'CUSTOMER' ? (
           <p className="text-sm text-navy/50">Only customer accounts can add items to a cart.</p>
         ) : (

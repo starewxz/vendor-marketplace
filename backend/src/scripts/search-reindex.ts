@@ -38,7 +38,7 @@ async function main() {
 
     const products = await productsRepository.find({
       where: { isPublished: true },
-      relations: { sellerProfile: true, category: true },
+      relations: { sellerProfile: true, category: true, auction: true },
     });
     console.log(`Found ${products.length} published product(s) to index.`);
 

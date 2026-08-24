@@ -4,6 +4,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToOne,
   OneToMany,
   VersionColumn,
 } from 'typeorm';
@@ -20,12 +21,16 @@ import { Bid } from './bid.entity';
  * supports if optimistic locking proves too contentious under load.
  */
 @Entity('auctions')
+@Index('IDX_auction_status_ends', ['status', 'endsAt'])
+@Index('IDX_auction_status_purchase_window', ['status', 'purchaseWindowEndsAt'])
 export class Auction extends BaseEntity {
   @Index({ unique: true })
   @Column({ type: 'uuid' })
   productId: string;
 
-  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
+  @OneToOne(() => Product, (product) => product.auction, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'productId' })
   product: Product;
 
@@ -44,6 +49,7 @@ export class Auction extends BaseEntity {
   @Column({ type: 'timestamptz' })
   endsAt: Date;
 
+  @Index('IDX_auction_winner')
   @Column({ type: 'uuid', nullable: true })
   winnerId: string | null;
 
@@ -51,8 +57,19 @@ export class Auction extends BaseEntity {
   @JoinColumn({ name: 'winnerId' })
   winner: User | null;
 
+  @Index('IDX_auction_winning_bid')
+  @Column({ type: 'uuid', nullable: true })
+  winningBidId: string | null;
+
+  @ManyToOne(() => Bid, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'winningBidId' })
+  winningBid: Bid | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   purchaseWindowEndsAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  finalizedAt: Date | null;
 
   @Column({
     type: 'enum',

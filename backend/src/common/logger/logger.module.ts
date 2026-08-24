@@ -32,6 +32,14 @@ function resolveCorrelationId(req: Request): string {
         return {
           pinoHttp: {
             level: logLevel,
+            redact: {
+              paths: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'res.headers["set-cookie"]',
+              ],
+              censor: '[REDACTED]',
+            },
             transport: isDev
               ? { target: 'pino-pretty', options: { singleLine: true } }
               : undefined,

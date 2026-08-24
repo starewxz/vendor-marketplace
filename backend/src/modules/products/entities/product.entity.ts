@@ -1,8 +1,16 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+} from 'typeorm';
 import { BaseEntity } from '../../../database/base.entity';
 import { SellerProfile } from '../../sellers/entities/seller-profile.entity';
 import { Category } from '../../categories/entities/category.entity';
 import { ProductType } from './product-type.enum';
+import { Auction } from '../../bidding/entities/auction.entity';
 
 /**
  * `price`/`stockQuantity`/`createdAt` are indexed for the Postgres fallback
@@ -63,4 +71,7 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'integer', default: 0 })
   ratingCount: number;
+
+  @OneToOne(() => Auction, (auction) => auction.product)
+  auction?: Auction;
 }

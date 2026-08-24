@@ -24,10 +24,15 @@ const BATCH_SIZE = 20;
  * already committed, so this failure never affects Postgres correctness.
  *
  * Routed by `event.aggregateType`: Product/Category go to SEARCH_SYNC,
- * SellerOrder goes to SELLER_ORDER_PROCESSING, Order and Refund go to
+ * SellerOrder goes to SELLER_ORDER_PROCESSING, Order/Refund/Auction go to
  * NOTIFICATIONS. NOTIFICATIONS has no consumer yet (full notification UI
  * is out of this stage's scope) — jobs simply accumulate there, which is
- * harmless and easy to wire a consumer onto later.
+ * harmless and easy to wire a consumer onto later. Auction's own state
+ * transitions (BID_PLACED, AUCTION_WON, AUCTION_PURCHASED, ...) are never
+ * driven by this queue — they're applied synchronously inside the same
+ * transaction that writes the outbox row (see BidPlacementService /
+ * AuctionLifecycleService / AuctionCheckoutService); routing them here only
+ * makes them available to a future notification consumer.
  */
 @Injectable()
 export class OutboxPublisherService {
@@ -51,6 +56,7 @@ export class OutboxPublisherService {
       SellerOrder: this.sellerOrderProcessingQueue,
       Order: this.notificationsQueue,
       Refund: this.notificationsQueue,
+      Auction: this.notificationsQueue,
     };
   }
 

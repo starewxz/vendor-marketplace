@@ -24,7 +24,11 @@ import { generateUniqueSlug, isUniqueViolation } from '../../common/utils/slug';
 import { CatalogCacheService } from '../../cache/catalog-cache.service';
 import { OutboxService } from '../outbox/outbox.service';
 
-const PRODUCT_RELATIONS = { sellerProfile: true, category: true } as const;
+const PRODUCT_RELATIONS = {
+  sellerProfile: true,
+  category: true,
+  auction: true,
+} as const;
 const MAX_SLUG_ATTEMPTS = 5;
 
 /**

@@ -1,11 +1,11 @@
 # Cargo Crew — Multi-Vendor Marketplace
 
 A general-purpose, high-volume multi-vendor marketplace (think: many independent sellers, fixed-price and auction
-listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–5**: foundation +
+listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–6**: foundation +
 architecture, auth + seller moderation, catalog + search, cart/checkout/orders, and the seller-order lifecycle
 (status progression, independent cancellation, partial refunds) (see
 [Current implementation status](#current-implementation-status)) — a production-minded build-out, not a finished
-product. Auctions/bidding, reviews, disputes, analytics, and full realtime notifications are still ahead.
+product. Reviews, disputes, analytics, and full realtime notifications are still ahead.
 
 ## Table of contents
 
@@ -775,5 +775,52 @@ run repeatedly — it promotes an existing user or creates one, never duplicates
 
 **Explicitly out of scope still** (see module/service comments for where each plugs in): full parent-`Order`
 cancellation/refund initiated *from* the parent (only per-SellerOrder actions exist), dispute-driven refunds
-(the `Refund.disputeId` column exists but is always null this stage), live bidding, full WebSocket event rooms,
+(the `Refund.disputeId` column exists but is always null this stage), full WebSocket event rooms,
 review/dispute workflows, analytics.
+
+**Done (Stage 6):**
+
+- One Auction per `AUCTION` Product, with `SCHEDULED → ACTIVE → AWAITING_PAYMENT → COMPLETED` as the successful
+  path; `UNSOLD` means no valid bids, `EXPIRED` means the winner did not purchase in time, and `CANCELLED` is seller/admin moderation before a
+  winner exists. Seller ownership is always derived through the Product's SellerProfile.
+- Bid placement is append-only and Postgres-authoritative. `POST /auctions/:id/bids` locks the Auction row with
+  `SELECT ... FOR UPDATE`, then checks the deadline and current minimum *after* acquiring that lock. The first bid
+  may equal `startPrice`; later bids require `currentPrice + minBidIncrement`. Two equal concurrent bids therefore
+  produce exactly one accepted row. A unique `(auctionId, bidderId, idempotencyKey)` index and an under-lock replay
+  lookup make retries safe, including simultaneous duplicates.
+- Auction finalization and winner-window expiry use durable BullMQ delayed jobs with deterministic job IDs. A
+  periodic Postgres reconciliation sweep catches overdue rows if Redis was unavailable or a delayed job was lost.
+  Both handlers lock the Auction and are status-checked no-ops on redelivery.
+- The winner gets a configurable purchase window (`AUCTION_PURCHASE_WINDOW_MINUTES`, default 30). Winner checkout
+  is a dedicated, idempotent transaction: guarded stock decrement, one Order/SellerOrder/item snapshot at the
+  winning Bid amount, existing integer-cent commission rounding, append-only ledger entries, and Outbox events.
+  The normal cart continues to reject auction products.
+- Auction price/status changes write `PRODUCT_UPDATED`/`STOCK_CHANGED` outbox rows; search-sync re-fetches the
+  current Postgres read model and updates Meilisearch asynchronously. Redis product/search caches are invalidated
+  only after commit. `BID_PLACED`, finalization, purchase, and expiry events remain available for Stage 7 realtime
+  notifications without broadcasting before commit.
+- Frontend product details now show a yellow auction console with current price, minimum next bid, countdown,
+  polling bid history, bid errors, and winner purchase CTA. Sellers configure and monitor auctions at
+  `/seller/auctions`; admins have a minimal operational view at `/admin/auctions`.
+
+### Auction timing and recovery sequence
+
+```mermaid
+sequenceDiagram
+  participant Buyer
+  participant API
+  participant PG as PostgreSQL
+  participant Q as BullMQ
+  Buyer->>API: POST bid + Idempotency-Key
+  API->>PG: BEGIN; SELECT Auction FOR UPDATE
+  API->>PG: deadline/minimum check; Bid + Auction + Outbox; COMMIT
+  Q->>API: delayed FINALIZE at endsAt
+  API->>PG: lock Auction; winner/window or ENDED; Outbox; COMMIT
+  Note over API,PG: Reconciliation repeats overdue work idempotently
+  Buyer->>API: winner checkout + Idempotency-Key
+  API->>PG: stock + Order + SellerOrder + Ledger + Outbox; COMMIT
+```
+
+The deadline uses application-server time captured only after the row lock is held. Consequently, a request that
+arrived before `endsAt` but acquires the lock at or after it is rejected. Stage 7 will add Socket.IO delivery and
+reconnect/resync; Stage 6 intentionally uses five-second TanStack Query polling.

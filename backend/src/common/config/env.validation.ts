@@ -81,6 +81,12 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   GOOGLE_OAUTH_CALLBACK_URL?: string;
+
+  @IsNumber()
+  @Min(1)
+  @Max(1440)
+  @IsOptional()
+  AUCTION_PURCHASE_WINDOW_MINUTES: number = 30;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

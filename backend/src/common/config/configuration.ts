@@ -29,6 +29,9 @@ export interface AppConfig {
     clientSecret: string | null;
     callbackUrl: string | null;
   };
+  auctions: {
+    purchaseWindowMinutes: number;
+  };
 }
 
 export default (): AppConfig => ({
@@ -63,5 +66,11 @@ export default (): AppConfig => ({
     clientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? null,
     clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? null,
     callbackUrl: process.env.GOOGLE_OAUTH_CALLBACK_URL ?? null,
+  },
+  auctions: {
+    purchaseWindowMinutes: parseInt(
+      process.env.AUCTION_PURCHASE_WINDOW_MINUTES ?? '30',
+      10,
+    ),
   },
 });

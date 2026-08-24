@@ -9,6 +9,7 @@ export const PRODUCTS_INDEX_SETTINGS = {
     'rating',
     'available',
     'productType',
+    'auctionStatus',
   ],
-  sortableAttributes: ['price', 'createdAt', 'rating'],
+  sortableAttributes: ['price', 'createdAt', 'rating', 'auctionCurrentPrice'],
 };

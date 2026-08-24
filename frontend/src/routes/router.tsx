@@ -31,6 +31,7 @@ import { AdminOrdersPage } from '../pages/admin/AdminOrdersPage';
 import { AdminOrderDetailPage } from '../pages/admin/AdminOrderDetailPage';
 import { AdminDisputesPage } from '../pages/admin/AdminDisputesPage';
 import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
+import { AdminAuctionsPage } from '../pages/admin/AdminAuctionsPage';
 
 import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -131,6 +132,7 @@ export const router = createBrowserRouter([
       { path: 'orders/:id', element: <AdminOrderDetailPage /> },
       { path: 'disputes', element: <AdminDisputesPage /> },
       { path: 'analytics', element: <AdminAnalyticsPage /> },
+      { path: 'auctions', element: <AdminAuctionsPage /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

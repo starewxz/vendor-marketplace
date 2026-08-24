@@ -22,6 +22,8 @@ export interface ProductSearchDocument extends Record<string, unknown> {
   ratingCount: number;
   imageUrls: string[];
   createdAt: number;
+  auctionStatus: string | null;
+  auctionCurrentPrice: number | null;
 }
 
 /** Requires `product.sellerProfile` and `product.category` to be loaded. */
@@ -37,7 +39,12 @@ export function buildProductSearchDocument(
     name: product.name,
     slug: product.slug,
     description: product.description,
-    price: product.price !== null ? Number(product.price) : null,
+    price:
+      product.auction?.currentPrice !== undefined
+        ? Number(product.auction.currentPrice)
+        : product.price !== null
+          ? Number(product.price)
+          : null,
     stockQuantity: product.stockQuantity,
     available: product.stockQuantity > 0,
     productType: product.type,
@@ -45,5 +52,9 @@ export function buildProductSearchDocument(
     ratingCount: product.ratingCount,
     imageUrls: product.imageUrls,
     createdAt: product.createdAt.getTime(),
+    auctionStatus: product.auction?.status ?? null,
+    auctionCurrentPrice: product.auction
+      ? Number(product.auction.currentPrice)
+      : null,
   };
 }
