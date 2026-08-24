@@ -84,6 +84,7 @@ export class SearchSyncProcessor extends WorkerHost {
     switch (eventType) {
       case 'PRODUCT_CREATED':
       case 'PRODUCT_UPDATED':
+      case 'STOCK_CHANGED':
         await this.syncProduct(aggregateId);
         return;
       case 'PRODUCT_DELETED':

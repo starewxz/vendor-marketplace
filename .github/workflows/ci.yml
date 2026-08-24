@@ -74,6 +74,12 @@ jobs:
       JWT_ACCESS_SECRET: ci_access_secret
       JWT_REFRESH_SECRET: ci_refresh_secret
       FRONTEND_URL: http://localhost:5173
+      # The Stage 4 checkout e2e suite drives concurrency/idempotency
+      # scenarios with many rapid requests from one IP — raise the
+      # throttler ceiling for this job only so it exercises real business
+      # logic instead of tripping rate limiting. Production keeps the
+      # default (100/60s).
+      RATE_LIMIT_MAX_REQUESTS: '2000'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

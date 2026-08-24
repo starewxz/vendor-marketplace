@@ -21,7 +21,9 @@ import { SellersModule } from './modules/sellers/sellers.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
 import { SearchSyncModule } from './modules/search-sync/search-sync.module';
+import { SellerOrderProcessingModule } from './modules/seller-order-processing/seller-order-processing.module';
 import { CartModule } from './modules/cart/cart.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { BiddingModule } from './modules/bidding/bidding.module';
 import { PaymentsLedgerModule } from './modules/payments-ledger/payments-ledger.module';
@@ -74,7 +76,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     CategoriesModule,
     ProductsModule,
     SearchSyncModule,
+    SellerOrderProcessingModule,
     CartModule,
+    CheckoutModule,
     OrdersModule,
     BiddingModule,
     PaymentsLedgerModule,

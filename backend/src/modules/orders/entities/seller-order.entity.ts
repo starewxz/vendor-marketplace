@@ -46,6 +46,7 @@ export class SellerOrder extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   sellerNetAmount: string;
 
+  @Index()
   @Column({
     type: 'enum',
     enum: SellerOrderStatus,

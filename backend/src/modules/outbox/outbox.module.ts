@@ -10,7 +10,11 @@ import { QUEUE_NAMES } from '../../queue/queue.constants';
 @Module({
   imports: [
     TypeOrmModule.forFeature([OutboxEvent, ProcessedEvent]),
-    BullModule.registerQueue({ name: QUEUE_NAMES.SEARCH_SYNC }),
+    BullModule.registerQueue(
+      { name: QUEUE_NAMES.SEARCH_SYNC },
+      { name: QUEUE_NAMES.SELLER_ORDER_PROCESSING },
+      { name: QUEUE_NAMES.NOTIFICATIONS },
+    ),
   ],
   providers: [OutboxService, OutboxPublisherService],
   exports: [OutboxService],

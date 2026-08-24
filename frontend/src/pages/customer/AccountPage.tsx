@@ -39,6 +39,18 @@ export function AccountPage() {
       {user.role === 'CUSTOMER' && (
         <Card className="flex items-center justify-between gap-4 p-5">
           <div>
+            <p className="font-semibold text-navy">Order history</p>
+            <p className="text-sm text-navy/60">See everything you've ordered, seller by seller.</p>
+          </div>
+          <Link to="/account/orders">
+            <Button variant="secondary">View your orders</Button>
+          </Link>
+        </Card>
+      )}
+
+      {user.role === 'CUSTOMER' && (
+        <Card className="flex items-center justify-between gap-4 p-5">
+          <div>
             <p className="font-semibold text-navy">Want to sell on Cargo Crew?</p>
             <p className="text-sm text-navy/60">Apply to open your own stall.</p>
           </div>

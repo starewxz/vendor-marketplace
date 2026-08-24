@@ -3,9 +3,11 @@ import { Logo } from '../ui/Logo';
 import { SearchBar } from './SearchBar';
 import { CategoryChips } from './CategoryChips';
 import { useAuth } from '../../features/auth/useAuth';
+import { useCart } from '../../features/cart/hooks';
 
 export function MarketplaceHeader() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { data: cart } = useCart(isAuthenticated && user?.role === 'CUSTOMER');
 
   return (
     <header className="sticky top-0 z-30 bg-paper">
@@ -27,7 +29,7 @@ export function MarketplaceHeader() {
             <Link
               to="/cart"
               aria-label="Cart"
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-navy hover:bg-cream"
+              className="relative inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-navy hover:bg-cream"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="9" cy="21" r="1" />
@@ -35,6 +37,11 @@ export function MarketplaceHeader() {
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Cart
+              {Boolean(cart?.itemCount) && (
+                <span className="absolute top-0 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold text-paper">
+                  {cart!.itemCount}
+                </span>
+              )}
             </Link>
             <Link
               to={isAuthenticated ? '/account' : '/login'}

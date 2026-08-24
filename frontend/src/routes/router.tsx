@@ -9,7 +9,10 @@ import { HomePage } from '../pages/customer/HomePage';
 import { CatalogPage } from '../pages/customer/CatalogPage';
 import { ProductDetailPage } from '../pages/customer/ProductDetailPage';
 import { CartPage } from '../pages/customer/CartPage';
+import { CheckoutPage } from '../pages/customer/CheckoutPage';
 import { AccountPage } from '../pages/customer/AccountPage';
+import { AccountOrdersPage } from '../pages/customer/AccountOrdersPage';
+import { OrderDetailPage } from '../pages/customer/OrderDetailPage';
 import { SellerApplicationPage } from '../pages/customer/SellerApplicationPage';
 import { LoginPage } from '../pages/customer/LoginPage';
 import { RegisterPage } from '../pages/customer/RegisterPage';
@@ -18,11 +21,14 @@ import { AuthCallbackPage } from '../pages/customer/AuthCallbackPage';
 import { SellerOverviewPage } from '../pages/seller/SellerOverviewPage';
 import { SellerProductsPage } from '../pages/seller/SellerProductsPage';
 import { SellerOrdersPage } from '../pages/seller/SellerOrdersPage';
+import { SellerOrderDetailPage } from '../pages/seller/SellerOrderDetailPage';
 import { SellerAuctionsPage } from '../pages/seller/SellerAuctionsPage';
 
 import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
 import { AdminSellersPage } from '../pages/admin/AdminSellersPage';
 import { AdminCategoriesPage } from '../pages/admin/AdminCategoriesPage';
+import { AdminOrdersPage } from '../pages/admin/AdminOrdersPage';
+import { AdminOrderDetailPage } from '../pages/admin/AdminOrderDetailPage';
 import { AdminDisputesPage } from '../pages/admin/AdminDisputesPage';
 import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
 
@@ -36,12 +42,43 @@ export const router = createBrowserRouter([
       { path: '/', element: <HomePage /> },
       { path: '/catalog', element: <CatalogPage /> },
       { path: '/product/:id', element: <ProductDetailPage /> },
-      { path: '/cart', element: <CartPage /> },
+      {
+        path: '/cart',
+        element: (
+          <ProtectedRoute allowedRoles={['CUSTOMER']}>
+            <CartPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/checkout',
+        element: (
+          <ProtectedRoute allowedRoles={['CUSTOMER']}>
+            <CheckoutPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: '/account',
         element: (
           <ProtectedRoute>
             <AccountPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/account/orders',
+        element: (
+          <ProtectedRoute allowedRoles={['CUSTOMER']}>
+            <AccountOrdersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/account/orders/:id',
+        element: (
+          <ProtectedRoute allowedRoles={['CUSTOMER']}>
+            <OrderDetailPage />
           </ProtectedRoute>
         ),
       },
@@ -75,6 +112,7 @@ export const router = createBrowserRouter([
       { index: true, element: <SellerOverviewPage /> },
       { path: 'products', element: <SellerProductsPage /> },
       { path: 'orders', element: <SellerOrdersPage /> },
+      { path: 'orders/:id', element: <SellerOrderDetailPage /> },
       { path: 'auctions', element: <SellerAuctionsPage /> },
     ],
   },
@@ -89,6 +127,8 @@ export const router = createBrowserRouter([
       { index: true, element: <AdminOverviewPage /> },
       { path: 'sellers', element: <AdminSellersPage /> },
       { path: 'categories', element: <AdminCategoriesPage /> },
+      { path: 'orders', element: <AdminOrdersPage /> },
+      { path: 'orders/:id', element: <AdminOrderDetailPage /> },
       { path: 'disputes', element: <AdminDisputesPage /> },
       { path: 'analytics', element: <AdminAnalyticsPage /> },
     ],

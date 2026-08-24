@@ -24,9 +24,18 @@ export class LedgerEntry extends BaseEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   amount: string;
 
+  @Index()
   @Column({ type: 'uuid', nullable: true })
   sellerOrderId: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   description: string | null;
+
+  // Ties a ledger row back to the request that created it — the same
+  // correlationId is threaded through the checkout transaction's outbox
+  // events, so a support/audit query can find everything one checkout
+  // produced.
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  correlationId: string | null;
 }

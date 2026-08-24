@@ -10,6 +10,7 @@ import { CartItem } from '../modules/cart/entities/cart-item.entity';
 import { Order } from '../modules/orders/entities/order.entity';
 import { SellerOrder } from '../modules/orders/entities/seller-order.entity';
 import { SellerOrderItem } from '../modules/orders/entities/seller-order-item.entity';
+import { CheckoutIdempotencyKey } from '../modules/orders/entities/checkout-idempotency-key.entity';
 import { Auction } from '../modules/bidding/entities/auction.entity';
 import { Bid } from '../modules/bidding/entities/bid.entity';
 import { LedgerEntry } from '../modules/payments-ledger/entities/ledger-entry.entity';
@@ -37,6 +38,7 @@ export const ALL_ENTITIES = [
   Order,
   SellerOrder,
   SellerOrderItem,
+  CheckoutIdempotencyKey,
   Auction,
   Bid,
   LedgerEntry,

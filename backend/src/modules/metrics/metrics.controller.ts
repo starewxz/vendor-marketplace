@@ -1,21 +1,23 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
+import { MetricsRegistryService } from './metrics-registry.service';
 
 /**
- * Runtime process metrics in Prometheus text format. Business/domain
- * counters (orders processed, bids placed, etc.) are added per-module as
- * those flows are implemented, using this same registry pattern.
+ * Runtime process metrics plus business/domain counters (checkout, stock,
+ * idempotency — see MetricsRegistryService) in Prometheus text format.
  */
 @ApiExcludeController()
 @Controller('metrics')
 export class MetricsController {
+  constructor(private readonly registry: MetricsRegistryService) {}
+
   @Public()
   @Get()
   @Header('Content-Type', 'text/plain; version=0.0.4')
   getMetrics(): string {
     const memory = process.memoryUsage();
-    return [
+    const processMetrics = [
       '# HELP process_uptime_seconds Process uptime in seconds.',
       '# TYPE process_uptime_seconds gauge',
       `process_uptime_seconds ${process.uptime()}`,
@@ -27,5 +29,7 @@ export class MetricsController {
       `process_heap_used_bytes ${memory.heapUsed}`,
       '',
     ].join('\n');
+
+    return processMetrics + this.registry.renderPrometheusText();
   }
 }

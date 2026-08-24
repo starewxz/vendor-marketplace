@@ -4,6 +4,7 @@ const ADMIN_NAV_ITEMS = [
   { to: '/admin', label: 'Overview', end: true },
   { to: '/admin/sellers', label: 'Sellers' },
   { to: '/admin/categories', label: 'Categories' },
+  { to: '/admin/orders', label: 'Orders' },
   { to: '/admin/disputes', label: 'Disputes' },
   { to: '/admin/analytics', label: 'Analytics' },
 ];

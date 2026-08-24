@@ -13,6 +13,7 @@ export class CartItem extends BaseEntity {
   @JoinColumn({ name: 'cartId' })
   cart: Cart;
 
+  @Index()
   @Column({ type: 'uuid' })
   productId: string;
 

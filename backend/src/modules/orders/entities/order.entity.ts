@@ -11,9 +11,12 @@ import { User } from '../../users/entities/user.entity';
 import { OrderStatus } from './order-status.enum';
 import { SellerOrder } from './seller-order.entity';
 
+// Composite index supports the "my orders, newest first" list query
+// (WHERE buyerId = :id ORDER BY createdAt DESC) used by customer and
+// admin order listing endpoints.
 @Entity('orders')
+@Index(['buyerId', 'createdAt'])
 export class Order extends BaseEntity {
-  @Index()
   @Column({ type: 'uuid' })
   buyerId: string;
 

@@ -1,13 +1,22 @@
-import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useProduct } from '../../features/catalog/useProduct';
+import { useAddCartItem } from '../../features/cart/hooks';
+import { useAuth } from '../../features/auth/useAuth';
+import { getApiErrorMessage } from '../../api/error';
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: product, isLoading, isError } = useProduct(id);
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const addToCart = useAddCartItem();
+  const [addToCartError, setAddToCartError] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState(false);
 
   if (isLoading) {
     return (
@@ -86,10 +95,41 @@ export function ProductDetailPage() {
               This is an auction listing — live bidding, current price, and time remaining land in a later stage.
             </p>
           </div>
+        ) : isAuthenticated && user?.role !== 'CUSTOMER' ? (
+          <p className="text-sm text-navy/50">Only customer accounts can add items to a cart.</p>
         ) : (
-          <Button disabled={!isAvailable} className="w-fit">
-            {isAvailable ? 'Add to cart (coming soon)' : 'Sold out'}
-          </Button>
+          <div className="flex flex-col items-start gap-2">
+            <Button
+              disabled={!isAvailable || addToCart.isPending}
+              className="w-fit"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  navigate('/login', { state: { from: { pathname: `/product/${id}` } } });
+                  return;
+                }
+                setAddToCartError(null);
+                addToCart.mutate(
+                  { productId: product.id, quantity: 1 },
+                  {
+                    onSuccess: () => {
+                      setJustAdded(true);
+                      setTimeout(() => setJustAdded(false), 2000);
+                    },
+                    onError: (error) => setAddToCartError(getApiErrorMessage(error)),
+                  },
+                );
+              }}
+            >
+              {!isAvailable
+                ? 'Sold out'
+                : addToCart.isPending
+                  ? 'Adding…'
+                  : justAdded
+                    ? 'Added to cart ✓'
+                    : 'Add to cart'}
+            </Button>
+            {addToCartError && <p className="text-sm text-coral">{addToCartError}</p>}
+          </div>
         )}
       </div>
     </div>

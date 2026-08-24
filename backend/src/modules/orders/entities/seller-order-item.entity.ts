@@ -20,6 +20,7 @@ export class SellerOrderItem extends BaseEntity {
   @JoinColumn({ name: 'sellerOrderId' })
   sellerOrder: SellerOrder;
 
+  @Index()
   @Column({ type: 'uuid', nullable: true })
   productId: string | null;
 
@@ -35,4 +36,10 @@ export class SellerOrderItem extends BaseEntity {
 
   @Column({ type: 'integer' })
   quantity: number;
+
+  // Snapshot of unitPrice * quantity at checkout time — stored rather than
+  // computed so historical order totals never drift if rounding rules
+  // change later.
+  @Column({ type: 'numeric', precision: 12, scale: 2 })
+  lineTotal: string;
 }

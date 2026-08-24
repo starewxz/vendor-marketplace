@@ -23,21 +23,35 @@ const BATCH_SIZE = 20;
  * retried on the next tick. The domain transaction that wrote the row
  * already committed, so this failure never affects Postgres correctness.
  *
- * All Product/Category events currently route to the same SEARCH_SYNC
- * queue; a future stage adding a differently-consumed aggregate type would
- * branch on `event.aggregateType` here.
+ * Routed by `event.aggregateType`: Product/Category go to SEARCH_SYNC,
+ * SellerOrder goes to SELLER_ORDER_PROCESSING, Order goes to
+ * NOTIFICATIONS. NOTIFICATIONS has no consumer yet (full notification UI
+ * is out of this stage's scope) — jobs simply accumulate there, which is
+ * harmless and easy to wire a consumer onto later.
  */
 @Injectable()
 export class OutboxPublisherService {
   private readonly logger = new Logger(OutboxPublisherService.name);
   private isPolling = false;
+  private readonly queuesByAggregateType: Record<string, Queue>;
 
   constructor(
     @InjectRepository(OutboxEvent)
     private readonly outboxRepository: Repository<OutboxEvent>,
     @InjectQueue(QUEUE_NAMES.SEARCH_SYNC)
     private readonly searchSyncQueue: Queue,
-  ) {}
+    @InjectQueue(QUEUE_NAMES.SELLER_ORDER_PROCESSING)
+    private readonly sellerOrderProcessingQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.NOTIFICATIONS)
+    private readonly notificationsQueue: Queue,
+  ) {
+    this.queuesByAggregateType = {
+      Product: this.searchSyncQueue,
+      Category: this.searchSyncQueue,
+      SellerOrder: this.sellerOrderProcessingQueue,
+      Order: this.notificationsQueue,
+    };
+  }
 
   @Interval(POLL_INTERVAL_MS)
   async poll(): Promise<void> {
@@ -66,8 +80,18 @@ export class OutboxPublisherService {
         .getMany();
 
       for (const event of events) {
+        const queue = this.queuesByAggregateType[event.aggregateType];
+        if (!queue) {
+          event.attempts += 1;
+          event.lastError = `No queue routed for aggregateType "${event.aggregateType}"`;
+          await manager.save(event);
+          this.logger.error(
+            `[${event.correlationId}] outbox event has no route eventId=${event.id} aggregateType=${event.aggregateType}`,
+          );
+          continue;
+        }
         try {
-          await this.searchSyncQueue.add(
+          await queue.add(
             event.eventType,
             {
               outboxEventId: event.id,
