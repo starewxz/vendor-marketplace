@@ -687,7 +687,10 @@ against a running container (`docker compose exec backend npm run seed:admin`; r
 from the Dockerfile). This is an explicit, developer-triggered command only — it never runs automatically on
 application startup. Safe to run repeatedly and never creates a duplicate user for `ADMIN_EMAIL`, but it is **not**
 a no-op on repeat runs: every run syncs the account's role/name/verification/password to the current env, so
-changing `ADMIN_PASSWORD` and re-running is how you rotate the admin's password.
+changing `ADMIN_PASSWORD` and re-running is how you rotate the admin's password. Note: Compose's `env_file` is
+snapshotted when the container is created/started, not hot-reloaded — after editing `.env`, run
+`docker compose up -d --force-recreate backend` (a plain `restart` reuses the old env) before re-running the seed,
+or the command will (correctly) sync to the stale value it actually sees.
 
 ## Current implementation status
 

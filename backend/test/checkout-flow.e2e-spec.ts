@@ -2,10 +2,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { getQueueToken } from '@nestjs/bullmq';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
+import type { Queue } from 'bullmq';
 import type { Repository } from 'typeorm';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
@@ -15,6 +17,10 @@ import { SellerProfile } from '../src/modules/sellers/entities/seller-profile.en
 import { LedgerEntry } from '../src/modules/payments-ledger/entities/ledger-entry.entity';
 import { OutboxEvent } from '../src/modules/outbox/entities/outbox-event.entity';
 import { ProcessedEvent } from '../src/modules/outbox/entities/processed-event.entity';
+import { SellerOrder } from '../src/modules/orders/entities/seller-order.entity';
+import { SellerOrderStatus } from '../src/modules/orders/entities/seller-order-status.enum';
+import { QUEUE_NAMES } from '../src/queue/queue.constants';
+import type { SellerOrderProcessingJobData } from '../src/modules/seller-order-processing/seller-order-processing.processor';
 
 /**
  * Requires live Postgres/Redis/Meilisearch (`docker compose up`) with
@@ -35,6 +41,8 @@ describe('Cart + checkout + multi-vendor order flow (e2e)', () => {
   let ledgerEntriesRepository: Repository<LedgerEntry>;
   let outboxEventsRepository: Repository<OutboxEvent>;
   let processedEventsRepository: Repository<ProcessedEvent>;
+  let sellerOrdersRepository: Repository<SellerOrder>;
+  let sellerOrderProcessingQueue: Queue<SellerOrderProcessingJobData>;
   const runId = randomUUID().slice(0, 8);
 
   beforeAll(async () => {
@@ -61,6 +69,10 @@ describe('Cart + checkout + multi-vendor order flow (e2e)', () => {
     outboxEventsRepository = moduleFixture.get(getRepositoryToken(OutboxEvent));
     processedEventsRepository = moduleFixture.get(
       getRepositoryToken(ProcessedEvent),
+    );
+    sellerOrdersRepository = moduleFixture.get(getRepositoryToken(SellerOrder));
+    sellerOrderProcessingQueue = moduleFixture.get(
+      getQueueToken(QUEUE_NAMES.SELLER_ORDER_PROCESSING),
     );
   });
 
@@ -449,6 +461,56 @@ describe('Cart + checkout + multi-vendor order flow (e2e)', () => {
           });
           expect(count).toBe(1);
         }
+      });
+
+      it('forcibly re-delivering an already-processed SELLER_ORDER_CREATED job is a safe no-op', async () => {
+        // The tests above only prove the invariant holds after BullMQ's
+        // normal (single, in this run) delivery. This one manually injects
+        // a genuine second delivery of the *same* event into the real
+        // queue/worker — not a mock — to prove the ProcessedEvent dedup
+        // check actually intercepts redelivery rather than merely never
+        // having been exercised twice.
+        const event = await outboxEventsRepository.findOneBy({
+          aggregateId: sellerOrderAId,
+          eventType: 'SELLER_ORDER_CREATED',
+        });
+        expect(event).not.toBeNull();
+
+        const beforeStatus = await sellerOrdersRepository.findOneBy({
+          id: sellerOrderAId,
+        });
+        expect(beforeStatus?.status).toBe(SellerOrderStatus.PROCESSING);
+
+        const duplicateJob = await sellerOrderProcessingQueue.add(
+          event!.eventType,
+          {
+            outboxEventId: event!.id,
+            eventType: event!.eventType,
+            aggregateType: event!.aggregateType,
+            aggregateId: event!.aggregateId,
+            correlationId: event!.correlationId,
+          },
+          { jobId: `redelivery-test-${event!.id}` },
+        );
+
+        await waitFor(async () => {
+          const state = await duplicateJob.getState();
+          return state === 'completed' || state === 'failed' ? state : null;
+        });
+        expect(await duplicateJob.getState()).toBe('completed');
+
+        const processedCount = await processedEventsRepository.count({
+          where: {
+            consumerName: 'seller-order-processing',
+            outboxEventId: event!.id,
+          },
+        });
+        expect(processedCount).toBe(1);
+
+        const afterStatus = await sellerOrdersRepository.findOneBy({
+          id: sellerOrderAId,
+        });
+        expect(afterStatus?.status).toBe(SellerOrderStatus.PROCESSING);
       });
     });
   });
