@@ -104,6 +104,7 @@ export class CheckoutService {
         `[${correlationId}] checkout completed orderId=${outcome.order.id} sellerOrders=${outcome.sellerOrders.length}`,
       );
       this.metrics.increment('checkout_succeeded_total');
+      this.metrics.increment('orders_created_total');
       return this.toResult(outcome.order, outcome.sellerOrders, false);
     } catch (error) {
       if (isUniqueViolation(error)) {

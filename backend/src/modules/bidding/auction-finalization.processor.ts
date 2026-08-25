@@ -4,6 +4,8 @@ import { Job } from 'bullmq';
 import { QUEUE_NAMES } from '../../queue/queue.constants';
 import { AuctionFinalizationJobData } from './auction-finalization.types';
 import { AuctionLifecycleService } from './auction-lifecycle.service';
+import { MetricsRegistryService } from '../metrics/metrics-registry.service';
+import { recordQueueJob } from '../metrics/queue-metrics.util';
 
 /**
  * Consumer side of the two delayed triggers AuctionLifecycleService
@@ -18,7 +20,10 @@ import { AuctionLifecycleService } from './auction-lifecycle.service';
 export class AuctionFinalizationProcessor extends WorkerHost {
   private readonly logger = new Logger(AuctionFinalizationProcessor.name);
 
-  constructor(private readonly lifecycle: AuctionLifecycleService) {
+  constructor(
+    private readonly lifecycle: AuctionLifecycleService,
+    private readonly metrics: MetricsRegistryService,
+  ) {
     super();
   }
 
@@ -28,11 +33,13 @@ export class AuctionFinalizationProcessor extends WorkerHost {
       `[${correlationId}] auction finalization job started type=${type} auctionId=${auctionId}`,
     );
     try {
-      if (type === 'FINALIZE') {
-        await this.lifecycle.finalizeAuction(auctionId, correlationId);
-      } else {
-        await this.lifecycle.expirePurchaseWindow(auctionId, correlationId);
-      }
+      await recordQueueJob(this.metrics, async () => {
+        if (type === 'FINALIZE') {
+          await this.lifecycle.finalizeAuction(auctionId, correlationId);
+        } else {
+          await this.lifecycle.expirePurchaseWindow(auctionId, correlationId);
+        }
+      });
       this.logger.log(
         `[${correlationId}] auction finalization job completed type=${type} auctionId=${auctionId}`,
       );

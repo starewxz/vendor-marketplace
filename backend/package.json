@@ -24,8 +24,10 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:run:prod": "node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run",
-    "seed:admin": "ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts",
+    "seed:admin": "node dist/scripts/seed-admin.js",
     "seed:admin:prod": "node dist/scripts/seed-admin.js",
+    "seed:demo": "ts-node -r tsconfig-paths/register src/scripts/seed-demo-catalog.ts",
+    "seed:demo:prod": "node dist/scripts/seed-demo-catalog.js",
     "search:reindex": "ts-node -r tsconfig-paths/register src/scripts/search-reindex.ts",
     "search:reindex:prod": "node dist/scripts/search-reindex.js"
   },

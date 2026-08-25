@@ -104,6 +104,7 @@ export class BidPlacementService {
       }
       if (error instanceof ConflictException) {
         this.metrics.increment('bid_conflicts_total');
+        this.metrics.increment('bids_rejected_total');
       }
       throw error;
     }

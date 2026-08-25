@@ -1,5 +1,6 @@
+import { join } from 'path';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -36,6 +37,7 @@ import { OutboxModule } from './modules/outbox/outbox.module';
 import { CacheModule } from './cache/cache.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
 
 @Module({
   imports: [
@@ -43,6 +45,16 @@ import { RolesGuard } from './common/guards/roles.guard';
       isGlobal: true,
       load: [configuration],
       validate: validateEnv,
+      // dotenv resolves relative to process.cwd() by default. The repo's
+      // .env lives at the monorepo root, one level above this package, so
+      // `npm run start:dev`/`test:e2e` run from `backend/` (cwd = backend/,
+      // no backend/.env) would otherwise fail env validation immediately —
+      // every AppModule bootstrap in every e2e spec hitting the same error.
+      // Docker/CI are unaffected: they inject real environment variables
+      // directly, and neither path below exists inside the built image
+      // (backend/.dockerignore excludes .env), so dotenv silently no-ops
+      // and falls through to those already-set process.env values.
+      envFilePath: ['.env', join(__dirname, '../../.env')],
     }),
     LoggerModule,
     ScheduleModule.forRoot(),
@@ -95,6 +107,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: HttpMetricsInterceptor },
   ],
 })
 export class AppModule implements NestModule {

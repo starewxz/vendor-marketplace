@@ -1,6 +1,7 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrder } from '../../features/orders/hooks';
@@ -56,11 +57,16 @@ export function OrderDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       {justPlaced && (
-        <Card className="border-mint bg-mint/10 p-4">
-          <p className="font-semibold text-navy">Order placed!</p>
-          <p className="text-sm text-navy/70">
-            Each seller in this order fulfills their part independently — you'll see status updates here.
-          </p>
+        <Card className="flex flex-col items-start gap-2 border-mint bg-mint/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold text-navy">Order placed successfully ✓</p>
+            <p className="text-sm text-navy/70">
+              Each seller in this order fulfills their part independently — you&apos;ll see status updates here.
+            </p>
+          </div>
+          <Link to="/catalog" className="shrink-0">
+            <Button variant="secondary" size="sm">Continue shopping</Button>
+          </Link>
         </Card>
       )}
 

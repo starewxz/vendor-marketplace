@@ -77,6 +77,12 @@ export class BiddingController {
 
   @Roles(UserRole.CUSTOMER)
   @ApiBearerAuth()
+  // Overrides the 'default' throttler's limit/ttl for this route only — a
+  // single named throttler is used deliberately (see app.module.ts):
+  // registering a second named throttler would apply it to every route by
+  // default (@nestjs/throttler runs all configured throttlers globally
+  // unless explicitly skipped), which would rate-limit unrelated endpoints
+  // too, not just this one.
   @Throttle({ default: { limit: 20, ttl: 10_000 } })
   @Post(':id/bids')
   @ApiHeader({

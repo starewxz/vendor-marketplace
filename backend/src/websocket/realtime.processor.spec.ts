@@ -28,6 +28,7 @@ describe('RealtimeProcessor routing', () => {
   const sellerOrders = { findOne: jest.fn() };
   const disputes = { findOne: jest.fn() };
   const realtime = { emitToRooms: jest.fn() };
+  const metrics = { observe: jest.fn(), increment: jest.fn() };
   const processor = new RealtimeProcessor(
     processed as never,
     products as never,
@@ -36,6 +37,7 @@ describe('RealtimeProcessor routing', () => {
     sellerOrders as never,
     realtime as never,
     disputes as never,
+    metrics as never,
   );
 
   beforeEach(() => jest.clearAllMocks());

@@ -32,3 +32,7 @@ Thumbs.db
 
 # Docker volumes data (if ever created locally)
 .data/
+
+# Load test generated artifacts (contain live tokens / raw run output)
+load-tests/.load-test-env.json
+load-tests/load-test-result.json

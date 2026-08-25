@@ -56,7 +56,7 @@ export function SellerAuctionsPage() {
         <Button onClick={() => setShowForm((value) => !value)}>{showForm ? 'Close form' : 'Configure auction'}</Button>
       </div>
 
-      {showForm && <Card className="border-sunny/60 p-5">
+      {showForm && <Card className="border-cargo-yellow-dark/50 p-5">
         <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
           <label className="text-sm text-navy">Auction product<select className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2" value={productId} onChange={(e) => setProductId(e.target.value)} required><option value="">Choose an auction product</option>{eligible.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
           <Input id="start-price" label="Start price" type="number" min="0.01" step="0.01" value={startPrice} onChange={(e) => setStartPrice(e.target.value)} required />

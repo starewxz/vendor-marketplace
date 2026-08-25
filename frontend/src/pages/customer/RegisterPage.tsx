@@ -34,7 +34,7 @@ export function RegisterPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="font-display text-xl font-semibold text-navy">Join the crew</h1>
+        <h1 className="font-display text-xl font-bold text-navy">Create your account</h1>
         <p className="text-sm text-navy/60">Create an account to shop or start selling.</p>
       </div>
 

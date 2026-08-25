@@ -65,7 +65,7 @@ describe('Cart + checkout + multi-vendor order flow (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   async function waitFor<T>(

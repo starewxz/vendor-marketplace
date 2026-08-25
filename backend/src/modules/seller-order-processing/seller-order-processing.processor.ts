@@ -10,6 +10,7 @@ import { SellerOrderStatus } from '../orders/entities/seller-order-status.enum';
 import { MetricsRegistryService } from '../metrics/metrics-registry.service';
 import { isUniqueViolation } from '../../common/utils/slug';
 import { OutboxService } from '../outbox/outbox.service';
+import { recordQueueJob } from '../metrics/queue-metrics.util';
 
 const CONSUMER_NAME = 'seller-order-processing';
 
@@ -72,8 +73,10 @@ export class SellerOrderProcessingProcessor extends WorkerHost {
       `[${correlationId}] seller order processing started eventId=${outboxEventId} type=${eventType}`,
     );
     try {
-      await this.dispatch(eventType, aggregateId, correlationId);
-      await this.markProcessed(outboxEventId);
+      await recordQueueJob(this.metrics, async () => {
+        await this.dispatch(eventType, aggregateId, correlationId);
+        await this.markProcessed(outboxEventId);
+      });
       this.logger.log(
         `[${correlationId}] seller order processing completed eventId=${outboxEventId}`,
       );

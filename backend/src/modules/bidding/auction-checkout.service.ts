@@ -100,6 +100,7 @@ export class AuctionCheckoutService {
       await this.cache.invalidateSearch();
 
       this.metrics.increment('auction_checkout_succeeded_total');
+      this.metrics.increment('orders_created_total');
       this.logger.log(
         `[${correlationId}] auction checkout completed auctionId=${auctionId} orderId=${outcome.order.id}`,
       );

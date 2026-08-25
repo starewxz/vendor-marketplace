@@ -1,11 +1,12 @@
 # Cargo Crew — Multi-Vendor Marketplace
 
 A general-purpose, high-volume multi-vendor marketplace (think: many independent sellers, fixed-price and auction
-listings, per-seller order splitting, commissions). This repository currently covers **Stages 1–7**: foundation +
-architecture, auth + seller moderation, catalog + search, cart/checkout/orders, seller-order lifecycle,
-auctions, and post-commit realtime delivery with reconnect/resync (see
+listings, per-seller order splitting, commissions). This repository covers **Stages 1–9**: foundation + architecture,
+auth + seller moderation, catalog + search, cart/checkout/orders, seller-order lifecycle, auctions, post-commit
+realtime delivery with reconnect/resync, reviews/disputes/analytics, and full frontend integration (see
 [Current implementation status](#current-implementation-status)) — a production-minded build-out, not a finished
-product. Reviews, disputes, and final analytics are still ahead.
+product. See [Known limitations](#known-limitations--what-would-be-improved-with-more-time) for what's intentionally
+out of scope.
 
 ## Table of contents
 
@@ -17,11 +18,19 @@ product. Reviews, disputes, and final analytics are still ahead.
 - [Cart, checkout & orders (Stage 4)](#cart-checkout--orders-stage-4)
 - [Seller order lifecycle, cancellation & refunds (Stage 5)](#seller-order-lifecycle-cancellation--refunds-stage-5)
 - [Realtime protocol (Stage 7)](#realtime-protocol-stage-7)
+- [Reviews, disputes, and analytics (Stage 8)](#reviews-disputes-and-analytics-stage-8)
+- [Frontend integration (Stage 9)](#frontend-integration-stage-9)
 - [Project structure](#project-structure)
 - [Development setup](#development-setup)
 - [Docker setup](#docker-setup)
 - [Environment variables](#environment-variables)
 - [Current implementation status](#current-implementation-status)
+- [Observability](#observability)
+- [Load testing](#load-testing)
+- [Security](#security)
+- [Testing](#testing)
+- [CI](#ci)
+- [Known limitations & what would be improved with more time](#known-limitations--what-would-be-improved-with-more-time)
 
 ## Technology stack
 
@@ -634,15 +643,51 @@ keeps schema changes deliberate rather than something that silently happens on e
 
 See `.env.example` for the full list with comments. No real secrets are committed.
 
-**Google OAuth** is optional in every environment. Leave `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` blank
-and `GET /auth/google` responds with a clear 400 instead of the backend failing to start — email/password auth is
-unaffected. To enable it: create an OAuth 2.0 Client ID (Google Cloud Console → APIs & Services → Credentials), set
-the authorized redirect URI to `GOOGLE_OAUTH_CALLBACK_URL` (`http://localhost:3000/api/auth/google/callback` by
-default), and fill in the three `GOOGLE_OAUTH_*` vars.
+### Google OAuth setup
 
-**Admin bootstrap**: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_NAME`, then run `npm run seed:admin` (or
-`npm run seed:admin:prod` / `docker compose exec backend npm run seed:admin:prod` against a built image). Safe to
-run repeatedly — it promotes an existing user or creates one, never duplicates.
+Optional in every environment — leave `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` blank and
+`GET /auth/google` responds with a clear `400` instead of the backend failing to start; email/password auth is
+completely unaffected either way. To enable it:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → APIs & Services → Credentials →
+   **Create Credentials → OAuth client ID**, choose **Web application**.
+2. Under **Authorized redirect URIs**, add exactly:
+   ```
+   http://localhost:3000/api/auth/google/callback
+   ```
+   This is the backend's callback route (`AuthController.googleCallback`, mounted under the global `api` prefix) —
+   there is exactly one canonical callback URL, and it must match `GOOGLE_OAUTH_CALLBACK_URL` below exactly
+   (including the `/api` prefix). Under **Authorized JavaScript origins**, add the frontend origin,
+   `http://localhost:5173` — the app the user's browser is actually on when they click "Continue with Google".
+3. While the OAuth consent screen is in **Testing** mode (the default for a new project), only accounts added under
+   **Audience → Test users** in Cloud Console can complete the consent flow — add your own Google account there
+   before testing.
+4. Copy the generated Client ID and Client Secret into `.env` (never commit real values):
+   ```
+   GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+   GOOGLE_OAUTH_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+   ```
+5. Restart the backend to pick up the change: `docker compose up -d --build backend` (Docker) or restart
+   `npm run start:dev` (local). `docker-compose.yml`'s backend service already loads the whole `.env` file
+   (`env_file: - .env`), so no separate Docker Compose edit is needed for these three variables.
+
+**Flow**: `GET /auth/google` (redirects to Google) → user consents → Google redirects to
+`GET /auth/google/callback` → backend finds-or-creates the local `User` (linked via a separate `AuthIdentity` row,
+matched to an existing account only by *verified* email — new accounts always default to role `CUSTOMER`, never
+`SELLER`/`ADMIN`) → issues the same access/refresh JWT pair as normal login (refresh token set as an httpOnly
+cookie, same rotation/hash/reuse-detection as email/password auth) → redirects to `${FRONTEND_URL}/auth/callback`
+(no token in the URL) → the frontend's `AuthCallbackPage` waits for the mount-time `/auth/refresh` call to pick up
+that cookie, then routes into the app. A failed callback (e.g. an unverified Google email) redirects back to
+`/login?error=google_oauth_failed` with a plain-language message instead of surfacing a raw JSON error.
+
+**Admin bootstrap**: set `ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_NAME`, then run `npm run seed:admin` — locally or
+against a running container (`docker compose exec backend npm run seed:admin`; runs the compiled
+`dist/scripts/seed-admin.js`, so `npm run build` must have produced `dist/` first — already true for any image built
+from the Dockerfile). This is an explicit, developer-triggered command only — it never runs automatically on
+application startup. Safe to run repeatedly and never creates a duplicate user for `ADMIN_EMAIL`, but it is **not**
+a no-op on repeat runs: every run syncs the account's role/name/verification/password to the current env, so
+changing `ADMIN_PASSWORD` and re-running is how you rotate the admin's password.
 
 ## Current implementation status
 
@@ -680,7 +725,9 @@ run repeatedly — it promotes an existing user or creates one, never duplicates
   preventing more than one PENDING application per user, and reviewer/timestamp/outbox events recorded on decision.
 - Google OAuth (`AuthIdentity` table, `LOCAL`/`GOOGLE` providers) with safe account linking by verified email; cleanly
   disabled (400, not a crash) when `GOOGLE_OAUTH_CLIENT_ID/SECRET` aren't set.
-- `npm run seed:admin` — idempotent admin bootstrap from `ADMIN_EMAIL/PASSWORD/NAME`.
+- `npm run seed:admin` — explicit admin bootstrap/sync from `ADMIN_EMAIL/PASSWORD/NAME`: creates the account if
+  missing, otherwise syncs role/name/verification/password to the current env (never a duplicate user, never run
+  automatically on startup).
 - Frontend wired to the real API: in-memory access token, silent session restoration via `/auth/refresh` on load,
   single-flight refresh-on-401 with no retry loop, role-gated `/seller/*` and `/admin/*` routes, a real seller
   application flow at `/account/seller`, and real admin moderation UI at `/admin/sellers`.
@@ -920,6 +967,141 @@ invalidate TanStack Query state, while reconnect always performs an authoritativ
 indicator reports Live/Reconnecting/Offline without blocking normal REST use. Navigation, dashboards, forms, cards,
 empty/error/loading states, and data-heavy views share the existing responsive Cargo Crew design system.
 
-Frontend checks are `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Storybook is not configured
-in this project, so there is no `build-storybook` command; focused Vitest tests cover important UI decision rules.
-Stage 10 remains responsible for final observability/CI hardening, load testing, and submission documentation.
+Frontend checks are `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. Storybook is configured
+(`npm run storybook` / `npm run build-storybook`) with stories for the core `components/ui` primitives
+(`Button`, `Card`, `Badge`, `Spinner`, `EmptyState`); focused Vitest tests cover important UI decision rules.
+
+## Observability
+
+- **Structured logging**: `nestjs-pino` (JSON in production, pretty-printed in dev), globally installed via
+  `app.useLogger()`. Built-in redaction for `Authorization`/`Cookie`/`Set-Cookie` headers — verified no
+  passwordHash/refresh-token/OAuth-secret ever appears in a log line. Domain services (checkout, bids, auction
+  finalization, refunds, disputes, seller moderation, queue processors) log structured events with the relevant
+  aggregate IDs and the request's correlation ID.
+- **Correlation ID**: `CorrelationIdMiddleware` reads `x-correlation-id` or generates a UUID per request, echoed back
+  as a response header. It is threaded explicitly (not via `AsyncLocalStorage`) through every layer of the primary
+  async flow: HTTP handler → domain service → `OutboxService.record(manager, { correlationId, ... })` (written in
+  the same DB transaction as the domain change) → `OutboxPublisherService` copies it into the BullMQ job payload →
+  every queue processor (`SearchSyncProcessor`, `SellerOrderProcessingProcessor`, `RealtimeProcessor`,
+  `AuctionFinalizationProcessor`, `NotificationsProcessor`) logs it on every step. One correlation ID is traceable
+  end-to-end from the originating HTTP request through to the async side effect it caused.
+- **`/metrics`** (Prometheus text format, `@Public()`, unauthenticated like a normal scrape target): process metrics
+  (uptime, RSS, heap) plus a lightweight in-process counter/gauge/histogram registry
+  (`MetricsRegistryService` — deliberately hand-rolled rather than `prom-client`, since this stage only needs a
+  handful of monotonic counters and two histograms, not a full client library; per-process, not
+  cross-instance-aggregated). Business/domain metrics actually emitted:
+  - Checkout: `checkout_attempts_total`, `checkout_succeeded_total`, `checkout_failed_total`,
+    `checkout_idempotent_replays_total`, `stock_conflicts_total`, `orders_created_total`
+  - Auction checkout: `auction_checkout_attempts_total`, `auction_checkout_succeeded_total`,
+    `auction_checkout_failed_total`, `auction_checkout_idempotent_replays_total`
+  - Bidding: `bid_attempts_total`, `bids_placed_total`, `bids_rejected_total`, `bid_conflicts_total`,
+    `bid_idempotent_replays_total`
+  - Auctions: `auctions_won_total`, `auctions_unsold_total`, `auctions_cancelled_total`,
+    `auction_purchase_windows_expired_total`
+  - Orders/refunds: `seller_orders_processed_total`, `seller_order_status_changes_total`,
+    `seller_order_cancellations_total`, `refunds_total`, `refund_failures_total`
+  - Reviews/disputes/analytics: `reviews_created_total`, `disputes_opened_total`, `disputes_resolved_total`,
+    `analytics_exports_total`
+  - Notifications: `notifications_sent_total`
+  - Queue processing (all 5 BullMQ consumers, via a shared `recordQueueJob()` helper): `queue_jobs_processed_total`,
+    `queue_jobs_failed_total`, `queue_processing_duration_seconds` (histogram)
+  - HTTP: `http_request_duration_seconds` (histogram, global interceptor, every request)
+  - WebSocket: `websocket_connections_current` (gauge), `websocket_connections_total`,
+    `websocket_disconnects_total`, `websocket_errors_total`, `websocket_events_emitted_total`
+- **Queue failure observability**: every processor increments `queue_jobs_failed_total` and logs the error (with
+  attempt count) before rethrowing, so BullMQ's configured retry/backoff applies and the failure is visible in both
+  logs and `/metrics` — not just retried silently. The `NOTIFICATIONS` queue has a real consumer
+  (`NotificationsProcessor`) with the same `ProcessedEvent`-dedup + metrics/logging shape as the other four.
+
+## Load testing
+
+See [`docs/load-test-report.md`](docs/load-test-report.md) for the full report and
+[`load-tests/`](load-tests/) for the reproducible k6 scripts. Summary of the last executed run (concurrent auction
+bidding, 7 bursts of 50 VUs each, against the real unmodified rate limit — no config changes): **10 accepted bids,
+130 correctly-rejected conflicts, 210 correctly-throttled requests, 0 unexpected failures across 350 total
+requests, 0 lost updates** — the auction's `currentPrice` exactly matched the highest of all 10
+independently-persisted `Bid` rows after the run, verified by a separate consistency-check script. The report also
+documents a real throttling bug found and fixed while calibrating this test (see "Security" above).
+
+## Security
+
+- **Validation**: every mutation endpoint uses a `class-validator`-annotated DTO; the global `ValidationPipe` sets
+  `whitelist: true, forbidNonWhitelisted: true`, so unrecognized fields are rejected rather than silently dropped
+  or passed through.
+- **Injection/XSS**: all queries go through TypeORM's QueryBuilder/repository API with parameterized values — no
+  raw string-interpolated SQL anywhere in the codebase. CSV export (`AdminAnalyticsController`) sanitizes formula
+  injection (`=`, `+`, `-`, `@` prefixes get a leading `'` and standard quote-doubling) before writing any
+  user-influenced value into a cell.
+- **IDOR**: ownership is enforced by query-scoping (matching id *and* owner in the `WHERE` clause, returning 404
+  rather than 403 on mismatch) across products, orders, seller-orders, disputes, and analytics — verified by
+  dedicated e2e assertions in each stage's flow spec. `GET /users/:id` is admin-only and returns a DTO (never the
+  raw `User` entity); `GET /sellers/:id` returns a public-safe DTO (`storeName`/`storeSlug`/`description`/`logoUrl`
+  only — never `userId` or `commissionRatePercent`).
+- **Rate limiting**: a single global throttler (`RATE_LIMIT_MAX_REQUESTS`/`RATE_LIMIT_TTL_SECONDS`, env-configurable,
+  100/60s default) with dedicated stricter per-route overrides for `login` (5/60s), `register` (10/60s), and bid
+  placement (20/10s, hardcoded — see note below) via `@Throttle()`. Only one named throttler is registered:
+  `@nestjs/throttler` applies *every* registered named throttler to *every* route by default, so a second named
+  throttler (tried during load-test calibration, to make the bid limit env-configurable) ended up rate-limiting
+  unrelated endpoints too — a real bug, caught by the full e2e suite and reverted before submission; see
+  `docs/load-test-report.md` for the detailed writeup. `/auth/refresh` is deliberately not specially throttled
+  beyond the generous global default, since it's called on every page load to restore a session.
+- **Sensitive data**: `passwordHash` is `select: false` at the column level and never included in any
+  DTO/serializer; `RefreshToken.tokenHash` stores a SHA-256 hash, never the plaintext token, and is never returned
+  by any endpoint; Google OAuth `clientSecret` lives only in server config. Pino's redaction config additionally
+  strips `Authorization`/`Cookie` headers from every log line as a second layer of defense.
+
+## Testing
+
+- **Backend unit tests**: `cd backend && npm test` — 250 tests across 32 suites (Jest), covering commission/money
+  math, bid accept/reject decision logic, parent-order aggregation, refund calculation, idempotency helpers, and
+  outbox/processor dispatch logic in isolation.
+- **Backend e2e tests**: `cd backend && npm run test:e2e -- --runInBand` — 96 tests across 8 suites, run against
+  live Postgres/Redis/Meilisearch (`docker compose up -d postgres redis meilisearch`, then
+  `npm run migration:run`). Covers, with real concurrent HTTP requests (not sequential mocked calls): multi-vendor
+  checkout (stock/commission/SellerOrder-count correctness, atomic rollback), concurrent auction bidding (one
+  consistent highest bid, no lost update), duplicate outbox/event delivery (effect applied once), SellerOrder
+  lifecycle/independent cancellation, partial refunds/over-refund rejection, reviews/disputes/analytics IDOR, and
+  realtime socket auth/room-scoping/reconnect-resync.
+  - Note: running the full e2e suite locally while the Docker `backend` container is also running will cause both
+    processes to compete for the same BullMQ jobs (each has its own Socket.IO server, so whichever instance's
+    worker wins the job is the one that emits the realtime event) — `docker compose stop backend` first, or run e2e
+    against a stack without the `backend` service started.
+- **Frontend**: `cd frontend && npm test` — 10 tests across 3 files (Vitest), covering reconnect/resync query
+  invalidation and dispute/review/refund eligibility and quantity-clamping business logic. Component/integration
+  tests are optional per spec and were not expanded beyond what already existed.
+- **Storybook**: `cd frontend && npm run build-storybook` builds a static Storybook with stories for the core
+  `components/ui` primitives.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`, three jobs:
+
+- **`backend`**: lint, build, unit tests.
+- **`backend-e2e`**: spins up real `postgres:16-alpine`, `redis:7-alpine`, and `getmeili/meilisearch:v1.10` service
+  containers with health checks, runs migrations against them, then the full e2e suite — so search-sync/outbox
+  behavior is exercised for real, never skipped or mocked in CI.
+- **`frontend`**: lint, typecheck, unit tests, Storybook build, production build.
+
+## Known limitations & what would be improved with more time
+
+- **Multi-instance realtime fan-out**: the Socket.IO Redis adapter is wired up (so events fan out correctly across
+  multiple backend instances), but this hasn't been load-tested with more than one backend replica running
+  simultaneously.
+- **Metrics are per-process, not aggregated**: `MetricsRegistryService` is an in-memory counter/histogram registry,
+  fine for a single instance or this stage's purpose, but a real multi-instance deployment would want each
+  instance's `/metrics` scraped independently by Prometheus (standard practice) rather than expecting one endpoint
+  to reflect fleet-wide totals.
+- **Notification delivery is log-only**: `NotificationsService.notify()` currently logs a structured message per
+  recipient (real consumer, real recipient-resolution logic, real dedup — see "Async SellerOrder processing" and
+  the outbox routing table) but doesn't yet persist an in-app notification record or send an email/push. Swapping
+  in a real channel only touches that one class.
+- **No distributed load-testing rig**: the load test (see `docs/load-test-report.md`) ran from a single machine
+  against a single-instance local Docker stack; a proper multi-origin load-testing setup would exercise the
+  bid-placement throttle and the concurrency logic simultaneously without needing a temporary throttle-config
+  override for the test window.
+- **Given more time**: add a saga-style compensation step for the rare case where an outbox event's async
+  consumer permanently fails after exhausting BullMQ retries (currently: visible via `queue_jobs_failed_total` and
+  logs, but no automatic alerting/dead-letter replay UI); expand Storybook coverage beyond the `components/ui`
+  primitives to the composite feature components (auction panel, cart, seller product form); add label support to
+  the metrics registry (or migrate to `prom-client`) so per-queue/per-route breakdowns are queryable instead of
+  only aggregate totals.

@@ -17,65 +17,61 @@ export function AccountPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold text-navy">Your account</h1>
+      <h1 className="font-display text-2xl font-bold text-navy">Your account</h1>
 
-      <Card className="flex flex-col gap-3 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-navy">
-              {user.firstName} {user.lastName}
-            </p>
-            <p className="text-sm text-navy/60">{user.email}</p>
-          </div>
-          <Badge tone={user.role === 'ADMIN' ? 'coral' : user.role === 'SELLER' ? 'mint' : 'neutral'}>
-            {user.role}
-          </Badge>
+      <Card className="flex items-center justify-between border border-line p-5">
+        <div>
+          <p className="font-semibold text-navy">
+            {user.firstName} {user.lastName}
+          </p>
+          <p className="text-sm text-navy/60">{user.email}</p>
         </div>
-        <Button variant="ghost" className="w-fit" onClick={handleLogout}>
-          Log out
-        </Button>
+        <div className="flex items-center gap-2">
+          {user.role !== 'CUSTOMER' && <Badge tone={user.role === 'ADMIN' ? 'coral' : 'mint'}>{user.role}</Badge>}
+          <Button variant="ghost" size="sm" onClick={handleLogout}>Log out</Button>
+        </div>
       </Card>
 
       {user.role === 'CUSTOMER' && (
-        <Card className="flex items-center justify-between gap-4 p-5">
-          <div>
-            <p className="font-semibold text-navy">Order history</p>
-            <p className="text-sm text-navy/60">See everything you've ordered, seller by seller.</p>
-          </div>
-          <Link to="/account/orders">
-            <Button variant="secondary">View your orders</Button>
-          </Link>
-        </Card>
-      )}
-
-      {user.role === 'CUSTOMER' && (
-        <Card className="flex items-center justify-between gap-4 p-5">
-          <div>
-            <p className="font-semibold text-navy">Want to sell on Cargo Crew?</p>
-            <p className="text-sm text-navy/60">Apply to open your own stall.</p>
-          </div>
-          <Link to="/account/seller">
-            <Button variant="secondary">Apply to sell</Button>
-          </Link>
-        </Card>
+        <Link to="/account/orders">
+          <Card className="flex items-center justify-between border border-line p-5 transition-colors hover:border-navy/25">
+            <div>
+              <p className="font-display text-lg font-bold text-navy">Your orders</p>
+              <p className="text-sm text-navy/60">Track deliveries, leave reviews, or open a dispute.</p>
+            </div>
+            <span className="text-crew-blue" aria-hidden="true">→</span>
+          </Card>
+        </Link>
       )}
 
       {user.role === 'SELLER' && (
-        <Card className="flex items-center justify-between gap-4 p-5">
-          <div>
-            <p className="font-semibold text-navy">You're a seller</p>
-            <p className="text-sm text-navy/60">Manage your stall from the seller dashboard.</p>
-          </div>
-          <Link to="/seller">
-            <Button variant="secondary">Go to dashboard</Button>
-          </Link>
-        </Card>
+        <Link to="/seller">
+          <Card className="flex items-center justify-between border border-line p-5 transition-colors hover:border-navy/25">
+            <div>
+              <p className="font-display text-lg font-bold text-navy">Seller dashboard</p>
+              <p className="text-sm text-navy/60">Manage your products, orders, and auctions.</p>
+            </div>
+            <span className="text-crew-blue" aria-hidden="true">→</span>
+          </Card>
+        </Link>
       )}
+
       {user.role === 'ADMIN' && (
-        <Card className="flex items-center justify-between gap-4 p-5">
-          <div><p className="font-semibold text-navy">Marketplace control room</p><p className="text-sm text-navy/60">Review operations, disputes, and platform analytics.</p></div>
-          <Link to="/admin"><Button variant="secondary">Go to admin</Button></Link>
-        </Card>
+        <Link to="/admin">
+          <Card className="flex items-center justify-between border border-line p-5 transition-colors hover:border-navy/25">
+            <div>
+              <p className="font-display text-lg font-bold text-navy">Admin dashboard</p>
+              <p className="text-sm text-navy/60">Review operations, disputes, and platform analytics.</p>
+            </div>
+            <span className="text-crew-blue" aria-hidden="true">→</span>
+          </Card>
+        </Link>
+      )}
+
+      {user.role === 'CUSTOMER' && (
+        <Link to="/account/seller" className="text-sm font-semibold text-navy/50 hover:text-crew-blue">
+          Want to sell here? Apply to open a stall →
+        </Link>
       )}
     </div>
   );

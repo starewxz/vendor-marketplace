@@ -9,7 +9,16 @@ import type {
 } from './catalog-search.interface';
 import type { ProductSearchDocument } from './product-search-document';
 
-const FACETED_FIELDS = ['categoryId', 'sellerId', 'available', 'productType'];
+// price is a continuous field (filterable via price range, not faceted —
+// per-exact-value counts wouldn't be meaningful); rating is discrete (1-5)
+// so it's included here alongside the other faceted dimensions.
+const FACETED_FIELDS = [
+  'categoryId',
+  'sellerId',
+  'available',
+  'productType',
+  'rating',
+];
 
 @Injectable()
 export class MeilisearchCatalogSearchService implements CatalogSearchPort {

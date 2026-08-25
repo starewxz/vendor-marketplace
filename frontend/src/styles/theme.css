@@ -1,25 +1,30 @@
 @import 'tailwindcss';
 
 /*
- * Cargo Crew brand tokens.
- * Palette story: cargo-yellow (hazard tape / shipping labels) + crew-blue
- * (workwear / delivery uniforms) + navy (freight-container ink) + coral
- * (the stamped "SALE" ink on a cargo tag). Not a generic SaaS palette —
- * every color is tied to the shipping/marketplace metaphor, not to
- * Minions-style character colors directly.
+ * Cargo Crew brand tokens — v3 (customer UX simplification pass).
+ *
+ * Palette story stays freight/workwear, not character-costume colors:
+ * cargo-yellow (hazard tape) is an ACCENT — CTAs, deals, selected state —
+ * not a dominant surface color. crew-blue/navy carry structure (header,
+ * links, key text). Most surfaces stay white/neutral so products are the
+ * visual focus, not the brand chrome around them. The previous pass's
+ * diagonal hazard-tape divider and rotated "stamp" badges were removed as
+ * decoration that competed with shopping content; the remaining brand
+ * touches (die-cut card corner, circular category tiles) are used
+ * sparingly, not on every repeated element.
  */
 @theme {
   --color-cargo-yellow: #ffc629;
   --color-cargo-yellow-dark: #e8a800;
   --color-crew-blue: #1e4fd8;
-  --color-crew-blue-dark: #15379e;
-  --color-navy: #10162b;
-  --color-navy-soft: #1c2340;
-  --color-paper: #fffdf7;
-  --color-cream: #fff6de;
+  --color-crew-blue-dark: #12308a;
+  --color-navy: #0b0f1f;
+  --color-navy-soft: #171d36;
+  --color-paper: #fff9ec;
+  --color-cream: #fff2d4;
   --color-coral: #ff5a4e;
   --color-mint: #17a673;
-  --color-line: #e7e1d2;
+  --color-line: #e7dfc9;
 
   --font-display: 'Baloo 2', 'Segoe UI', sans-serif;
   --font-body: 'Inter', 'Segoe UI', sans-serif;
@@ -47,29 +52,47 @@
   }
 }
 
-/*
- * Signature brand element: a beveled top-left corner plus a small punched
- * "hole" dot, like a shipping tag clipped to a crate. Applied to product
- * cards, promo tiles, and badges so the cargo-tag metaphor is felt
- * structurally, not just in color choices.
- */
 @layer components {
+  /*
+   * Optional signature brand element: a beveled top-left corner plus a
+   * punched "hole" dot, like a shipping tag clipped to a crate. Available
+   * via Card's `notch` prop — used sparingly, not on every card.
+   */
   .cargo-tag {
     position: relative;
-    clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%, 0 18px);
+    clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%, 0 20px);
   }
 
   .cargo-tag::before {
     content: '';
     position: absolute;
-    top: 7px;
-    left: 7px;
+    top: 8px;
+    left: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--color-paper);
+    box-shadow: inset 0 1px 1px rgba(11, 15, 31, 0.3);
+    z-index: 10;
+  }
+
+  /* Two overlapping circles — a restrained nod to goggles/lenses, never a
+   * face. Used only as a tiny decorative accent (category-image
+   * fallback), never a character. */
+  .lens-dots {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .lens-dots span {
     width: 7px;
     height: 7px;
     border-radius: 9999px;
-    background: var(--color-paper);
-    box-shadow: inset 0 1px 1px rgba(16, 22, 43, 0.25);
-    z-index: 10;
+    border: 1.5px solid currentColor;
+  }
+
+  .lens-dots span + span {
+    margin-left: -2px;
   }
 }
 

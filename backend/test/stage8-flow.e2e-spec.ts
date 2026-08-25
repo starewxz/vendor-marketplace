@@ -193,7 +193,9 @@ describe('Stage 8 verified reviews, disputes, refunds and analytics (e2e)', () =
       }),
     ]);
   });
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    if (app) await app.close();
+  });
 
   it('enforces verified purchase review ownership and updates rating', async () => {
     await request(app.getHttpServer())

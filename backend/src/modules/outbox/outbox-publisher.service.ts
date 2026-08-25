@@ -25,11 +25,11 @@ const BATCH_SIZE = 20;
  *
  * Routed by `event.aggregateType`: Product/Category go to SEARCH_SYNC,
  * SellerOrder goes to SELLER_ORDER_PROCESSING, and lifecycle aggregates go
- * to NOTIFICATIONS. State-bearing Product, SellerOrder, Order, Refund, and
- * Auction events are also fanned out to REALTIME. NOTIFICATIONS has no consumer yet (full notification UI
- * is out of this stage's scope) — jobs simply accumulate there, which is
- * harmless and easy to wire a consumer onto later. Auction's own state
- * transitions (BID_PLACED, AUCTION_WON, AUCTION_PURCHASED, ...) are never
+ * to NOTIFICATIONS (consumed by NotificationsProcessor, which resolves the
+ * recipient per event type and delivers via NotificationsService). State-
+ * bearing Product, SellerOrder, Order, Refund, and Auction events are also
+ * fanned out to REALTIME. Auction's own state transitions (BID_PLACED,
+ * AUCTION_WON, AUCTION_PURCHASED, ...) are never
  * driven by this queue — they're applied synchronously inside the same
  * transaction that writes the outbox row (see BidPlacementService /
  * AuctionLifecycleService / AuctionCheckoutService); routing them here only

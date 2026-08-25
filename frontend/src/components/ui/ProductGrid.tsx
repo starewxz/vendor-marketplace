@@ -1,28 +1,37 @@
+import { Link } from 'react-router-dom';
 import type { CatalogProduct } from '../../types/product';
 import { ProductCard } from './ProductCard';
-import { Spinner } from './Spinner';
 import { EmptyState } from './EmptyState';
+import { Button } from './Button';
+import { ProductGridSkeleton } from './ProductCardSkeleton';
 
 interface ProductGridProps {
   products: CatalogProduct[] | undefined;
   isLoading: boolean;
   isError: boolean;
+  onRetry?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
-export function ProductGrid({ products, isLoading, isError }: ProductGridProps) {
+export function ProductGrid({
+  products,
+  isLoading,
+  isError,
+  onRetry,
+  emptyTitle = 'No products found',
+  emptyDescription = 'Try a different search or clear your filters.',
+}: ProductGridProps) {
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-14">
-        <Spinner label="Loading crates…" />
-      </div>
-    );
+    return <ProductGridSkeleton />;
   }
 
   if (isError) {
     return (
       <EmptyState
-        title="Couldn't reach the warehouse"
-        description="The catalog API didn't respond. Check that the backend is running and try again."
+        title="We couldn't load these products"
+        description="Something went wrong reaching the catalog."
+        action={onRetry ? <Button variant="secondary" onClick={onRetry}>Try again</Button> : undefined}
       />
     );
   }
@@ -30,8 +39,13 @@ export function ProductGrid({ products, isLoading, isError }: ProductGridProps) 
   if (!products || products.length === 0) {
     return (
       <EmptyState
-        title="No crates unpacked yet"
-        description="Nothing matched — try a different search or clear your filters."
+        title={emptyTitle}
+        description={emptyDescription}
+        action={
+          <Link to="/catalog">
+            <Button variant="secondary">Browse all products</Button>
+          </Link>
+        }
       />
     );
   }

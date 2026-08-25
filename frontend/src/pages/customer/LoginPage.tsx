@@ -6,14 +6,25 @@ import { GoogleLoginButton } from '../../components/ui/GoogleLoginButton';
 import { useAuth } from '../../features/auth/useAuth';
 import { getApiErrorMessage } from '../../api/error';
 
+// The backend's Google OAuth callback redirects here (full page navigation,
+// not a fetch call) with this flag on failure — e.g. an unverified Google
+// email — since it can't hand the frontend a normal caught exception.
+const GOOGLE_OAUTH_ERROR_MESSAGE =
+  'Google sign-in failed. Please try again or use email/password.';
+
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    new URLSearchParams(location.search).get('error') === 'google_oauth_failed'
+      ? GOOGLE_OAUTH_ERROR_MESSAGE
+      : null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const redirectFrom = (location.state as { from?: Location } | null)?.from?.pathname;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -33,8 +44,10 @@ export function LoginPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="font-display text-xl font-semibold text-navy">Welcome back</h1>
-        <p className="text-sm text-navy/60">Log in to track orders and manage your stall.</p>
+        <h1 className="font-display text-xl font-bold text-navy">Welcome back</h1>
+        <p className="text-sm text-navy/60">
+          {redirectFrom ? 'Sign in to continue where you left off.' : 'Log in to track orders and manage your stall.'}
+        </p>
       </div>
 
       <GoogleLoginButton />

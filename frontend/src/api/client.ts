@@ -37,6 +37,13 @@ type RetriableRequestConfig = InternalAxiosRequestConfig & { _retried?: boolean 
 
 const REFRESH_URL = '/auth/refresh';
 
+// A 401 from these is a real authentication failure (bad credentials, or no
+// session to restore yet), not an expired-access-token case — attempting a
+// silent refresh here would just fire a doomed `/auth/refresh` call and
+// surface a confusing secondary "missing refresh token" error on top of the
+// real one.
+const NON_RETRIABLE_AUTH_URLS = new Set([REFRESH_URL, '/auth/login', '/auth/register']);
+
 // A single in-flight refresh is shared by every request that hits a 401 at
 // the same time, so a burst of concurrent requests doesn't fire a burst of
 // concurrent refresh calls (each of which would rotate the token and race
@@ -62,11 +69,14 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as RetriableRequestConfig | undefined;
 
     const isUnauthorized = error.response?.status === 401;
-    const isRefreshCall = originalRequest?.url === REFRESH_URL;
+    const isNonRetriableAuthCall =
+      !!originalRequest?.url && NON_RETRIABLE_AUTH_URLS.has(originalRequest.url);
 
-    // Never retry the refresh endpoint itself — that's the infinite-loop
-    // trap. A failed refresh means the session is genuinely over.
-    if (!isUnauthorized || isRefreshCall || !originalRequest || originalRequest._retried) {
+    // Never retry the refresh/login/register endpoints — refresh is the
+    // infinite-loop trap (a failed refresh means the session is genuinely
+    // over), and login/register failing with 401 is a bad-credentials
+    // response, not an expired access token.
+    if (!isUnauthorized || isNonRetriableAuthCall || !originalRequest || originalRequest._retried) {
       if (isUnauthorized) {
         setAccessToken(null);
       }

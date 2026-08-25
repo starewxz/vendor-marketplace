@@ -43,7 +43,7 @@ describe('Auth + seller moderation flow (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   const customerEmail = `customer-${runId}@example.com`;

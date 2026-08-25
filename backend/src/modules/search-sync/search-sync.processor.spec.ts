@@ -8,6 +8,7 @@ import { ProcessedEvent } from '../outbox/entities/processed-event.entity';
 import { SEARCH_INDEX_PORT } from '../../search/search-index.interface';
 import { ProductsService } from '../products/products.service';
 import { PRODUCTS_INDEX } from '../products/search/catalog-search.constants';
+import { MetricsRegistryService } from '../metrics/metrics-registry.service';
 
 function buildJob(data: SearchSyncJobData): Job<SearchSyncJobData> {
   return { data, attemptsMade: 0 } as unknown as Job<SearchSyncJobData>;
@@ -47,6 +48,7 @@ describe('SearchSyncProcessor', () => {
         },
         { provide: SEARCH_INDEX_PORT, useValue: searchIndex },
         { provide: ProductsService, useValue: productsService },
+        MetricsRegistryService,
       ],
     }).compile();
 

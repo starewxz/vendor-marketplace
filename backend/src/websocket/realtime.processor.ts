@@ -17,6 +17,8 @@ import { Product } from '../modules/products/entities/product.entity';
 import { Dispute } from '../modules/disputes/entities/dispute.entity';
 import { QUEUE_NAMES } from '../queue/queue.constants';
 import { RealtimeService } from './realtime.service';
+import { MetricsRegistryService } from '../modules/metrics/metrics-registry.service';
+import { recordQueueJob } from '../modules/metrics/queue-metrics.util';
 import {
   auctionRoom,
   orderRoom,
@@ -60,6 +62,7 @@ export class RealtimeProcessor extends WorkerHost {
     private readonly realtime: RealtimeService,
     @InjectRepository(Dispute)
     private readonly disputes: Repository<Dispute>,
+    private readonly metrics: MetricsRegistryService,
   ) {
     super();
   }
@@ -78,8 +81,10 @@ export class RealtimeProcessor extends WorkerHost {
     }
 
     try {
-      await this.dispatch(event);
-      await this.markProcessed(event.outboxEventId);
+      await recordQueueJob(this.metrics, async () => {
+        await this.dispatch(event);
+        await this.markProcessed(event.outboxEventId);
+      });
     } catch (error) {
       this.logger.error(
         `[${event.correlationId}] realtime processing failed eventId=${event.outboxEventId} type=${event.eventType} attempt=${job.attemptsMade + 1}: ${(error as Error).message}`,

@@ -10,6 +10,8 @@ import type { SearchIndexPort } from '../../search/search-index.interface';
 import { PRODUCTS_INDEX } from '../products/search/catalog-search.constants';
 import { ProductsService } from '../products/products.service';
 import { isUniqueViolation } from '../../common/utils/slug';
+import { MetricsRegistryService } from '../metrics/metrics-registry.service';
+import { recordQueueJob } from '../metrics/queue-metrics.util';
 
 const CONSUMER_NAME = 'search-sync';
 
@@ -43,6 +45,7 @@ export class SearchSyncProcessor extends WorkerHost {
     private readonly processedEventsRepository: Repository<ProcessedEvent>,
     @Inject(SEARCH_INDEX_PORT) private readonly searchIndex: SearchIndexPort,
     private readonly productsService: ProductsService,
+    private readonly metrics: MetricsRegistryService,
   ) {
     super();
   }
@@ -64,8 +67,10 @@ export class SearchSyncProcessor extends WorkerHost {
       `[${correlationId}] search sync started eventId=${outboxEventId} type=${eventType}`,
     );
     try {
-      await this.dispatch(eventType, aggregateId);
-      await this.markProcessed(outboxEventId);
+      await recordQueueJob(this.metrics, async () => {
+        await this.dispatch(eventType, aggregateId);
+        await this.markProcessed(outboxEventId);
+      });
       this.logger.log(
         `[${correlationId}] search sync completed eventId=${outboxEventId}`,
       );

@@ -58,7 +58,7 @@ describe('Seller order lifecycle + cancellation + refund flow (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
   });
 
   // Same rationale as checkout-flow.e2e-spec.ts: fixture setup mints JWTs

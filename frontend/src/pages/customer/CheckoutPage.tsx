@@ -71,7 +71,7 @@ export function CheckoutPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold text-navy">Checkout</h1>
+      <h1 className="font-display text-2xl font-bold text-navy">Checkout</h1>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
@@ -127,6 +127,13 @@ export function CheckoutPage() {
               onChange={(e) => updateField('shippingCountry', e.target.value)}
             />
           </Card>
+
+          <Card className="flex flex-col gap-2 bg-cream/50 p-5">
+            <p className="font-display font-semibold text-navy">Payment</p>
+            <p className="text-sm text-navy/60">
+              This is a demo checkout — no real payment method is charged when you place this order.
+            </p>
+          </Card>
         </div>
 
         <Card className="flex h-fit flex-col gap-4 p-5">
@@ -147,6 +154,7 @@ export function CheckoutPage() {
           >
             {checkoutMutation.isPending ? 'Placing order…' : 'Place order'}
           </Button>
+          <p className="text-center text-xs text-navy/40">Demo checkout — no real payment will be charged.</p>
         </Card>
       </div>
     </div>

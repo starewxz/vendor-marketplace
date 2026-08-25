@@ -1,9 +1,10 @@
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { User } from './entities/user.entity';
 import { UserResponseDto } from './dto/user-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from './entities/user-role.enum';
 import type { AuthenticatedRequestUser } from '../auth/types/jwt-payload';
 
 @ApiTags('users')
@@ -22,7 +23,12 @@ export class UsersController {
   }
 
   @Get(':id')
-  findById(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
-    return this.usersService.findById(id);
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get a user by id (admin only)' })
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserResponseDto> {
+    const user = await this.usersService.findById(id);
+    return UserResponseDto.fromEntity(user);
   }
 }

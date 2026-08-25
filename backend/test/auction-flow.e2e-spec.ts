@@ -58,7 +58,9 @@ describe('Auction concurrency, finalization, and winner checkout (e2e)', () => {
     outbox = moduleRef.get(getRepositoryToken(OutboxEvent));
   });
 
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    if (app) await app.close();
+  });
 
   async function account(role: UserRole, label: string) {
     const user = await users.create({

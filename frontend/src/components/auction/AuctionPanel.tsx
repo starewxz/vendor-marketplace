@@ -86,39 +86,56 @@ export function AuctionPanel({ productId }: { productId: string }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-sm">
-      <div className="bg-sunny px-5 py-4 text-navy">
+    <section className="overflow-hidden rounded-2xl border border-navy/15 shadow-sm">
+      <div className="bg-navy px-5 py-4 text-paper">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Badge tone={auction.status === 'ACTIVE' ? 'coral' : 'neutral'}>
-              {auction.status === 'ACTIVE'
-                ? 'Live auction'
-                : auction.status.replaceAll('_', ' ')}
-            </Badge>
-            <span className="text-xs font-medium text-navy/55">
+            {auction.status === 'ACTIVE' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-coral px-2.5 py-1 text-[11px] font-bold tracking-wide text-paper uppercase">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-paper" aria-hidden="true" />
+                Live auction
+              </span>
+            ) : (
+              <Badge tone="neutral">{auction.status.replaceAll('_', ' ')}</Badge>
+            )}
+            <span className="text-xs font-medium text-paper/55">
               {realtimeStatus === 'live'
-                ? '● Live updates'
+                ? '● live updates'
                 : realtimeStatus === 'reconnecting' || realtimeStatus === 'connecting'
-                  ? '○ Reconnecting…'
-                  : '○ Offline — updates may be delayed'}
+                  ? '○ reconnecting…'
+                  : '○ offline — updates may be delayed'}
             </span>
           </div>
-          <span className="font-mono text-sm font-semibold">{clock}</span>
+          <span className="rounded-lg bg-paper/10 px-2.5 py-1 font-mono text-sm font-bold text-cargo-yellow">{clock}</span>
         </div>
-        <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-navy/55">Current bid</p>
-        <p className="font-mono text-4xl font-bold tracking-tight">${auction.currentPrice}</p>
-        <p className="text-sm text-navy/65">{auction.bidCount} bid{auction.bidCount === 1 ? '' : 's'} · next bid ${auction.minNextBid}</p>
+        <p className="mt-4 text-xs font-bold tracking-[0.16em] text-paper/55 uppercase">Current bid</p>
+        <p className="font-mono text-5xl font-black tracking-tight text-cargo-yellow">${auction.currentPrice}</p>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-paper/70">
+          <span className="rounded-full bg-paper/10 px-2.5 py-1">{auction.bidCount} bid{auction.bidCount === 1 ? '' : 's'}</span>
+          <span className="rounded-full bg-paper/10 px-2.5 py-1">next bid ${auction.minNextBid}</span>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 p-5">
-        {auction.status === 'ACTIVE' && user?.role !== 'SELLER' && user?.role !== 'ADMIN' && (
-          <form onSubmit={submitBid} className="flex items-end gap-2">
-            <div className="flex-1">
-              <label htmlFor="bid-amount" className="mb-1 block text-xs font-medium text-navy/60">Your bid</label>
-              <Input id="bid-amount" type="number" min={auction.minNextBid} step="0.01" value={amount || auction.minNextBid} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" required />
-            </div>
-            <Button type="submit" disabled={bid.isPending}>{bid.isPending ? 'Checking bid…' : 'Place bid'}</Button>
-          </form>
+        {auction.status === 'ACTIVE' && isAuthenticated && user?.role !== 'SELLER' && user?.role !== 'ADMIN' && (
+          <div className="flex flex-col gap-2">
+            <form onSubmit={submitBid} className="flex items-end gap-2">
+              <div className="flex-1">
+                <label htmlFor="bid-amount" className="mb-1 block text-xs font-medium text-navy/60">Your bid</label>
+                <Input id="bid-amount" type="number" min={auction.minNextBid} step="0.01" value={amount || auction.minNextBid} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" required />
+              </div>
+              <Button type="submit" disabled={bid.isPending}>{bid.isPending ? 'Checking bid…' : 'Place bid'}</Button>
+            </form>
+            <p className="text-xs text-navy/45">The highest valid bid when the auction ends wins.</p>
+          </div>
+        )}
+        {auction.status === 'ACTIVE' && !isAuthenticated && (
+          <div className="flex flex-col items-start gap-2 rounded-xl bg-cream px-4 py-3">
+            <p className="text-sm text-navy/70">Sign in to place a bid on this auction.</p>
+            <Button size="sm" onClick={() => navigate('/login', { state: { from: { pathname: `/product/${productId}` } } })}>
+              Sign in
+            </Button>
+          </div>
         )}
         {auction.status === 'ACTIVE' && (user?.role === 'SELLER' || user?.role === 'ADMIN') && (
           <p className="rounded-xl bg-cream px-3 py-2 text-sm text-navy/60">Seller and admin accounts can watch this auction, but bidding requires a customer account.</p>

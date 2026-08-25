@@ -23,7 +23,7 @@ interface DashboardShellProps {
 export function DashboardShell({ navItems, roleLabel }: DashboardShellProps) {
   return (
     <div className="min-h-screen bg-cream/30 lg:flex">
-      <aside className="border-b border-line bg-white px-4 py-4 lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:gap-6 lg:border-r lg:border-b-0 lg:py-6">
+      <aside className="border-b-2 border-navy/10 bg-white px-4 py-4 lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:gap-6 lg:border-r-2 lg:border-b-0 lg:py-6">
         <div className="flex items-center justify-between gap-3 lg:block">
           <Logo />
           <Badge tone="blue">{roleLabel}</Badge>

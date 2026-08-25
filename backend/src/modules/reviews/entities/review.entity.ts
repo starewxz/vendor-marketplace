@@ -6,6 +6,7 @@ import { SellerOrderItem } from '../../orders/entities/seller-order-item.entity'
 
 @Entity('reviews')
 @Index(['sellerOrderItemId', 'customerId'], { unique: true })
+@Index(['productId', 'customerId'], { unique: true })
 @Index(['productId', 'createdAt'])
 export class Review extends BaseEntity {
   @Column({ type: 'uuid' })

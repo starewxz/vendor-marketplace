@@ -134,6 +134,7 @@ export class SellersService {
       msg: 'seller application submitted',
       userId,
       applicationId: application.id,
+      correlationId,
     });
     return application;
   }
@@ -215,6 +216,7 @@ export class SellersService {
           applicationId: application.id,
           userId: application.userId,
           adminUserId,
+          correlationId,
         });
 
         return application;
@@ -266,6 +268,7 @@ export class SellersService {
           applicationId: application.id,
           userId: application.userId,
           adminUserId,
+          correlationId,
         });
 
         return application;

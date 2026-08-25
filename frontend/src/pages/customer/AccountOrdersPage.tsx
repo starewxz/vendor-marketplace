@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMyOrders } from '../../features/orders/hooks';
@@ -16,12 +17,20 @@ export function AccountOrdersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-display text-2xl font-semibold text-navy">Your orders</h1>
+      <h1 className="font-display text-2xl font-bold text-navy">Your orders</h1>
 
       {isLoading && <Spinner label="Loading your orders…" />}
-      {isError && <EmptyState title="Couldn't load your orders" description="Try refreshing the page." />}
+      {isError && <EmptyState title="We couldn't load your orders" description="Please try refreshing the page." />}
       {!isLoading && !isError && data && data.items.length === 0 && (
-        <EmptyState title="No orders yet" description="Orders you place will show up here." />
+        <EmptyState
+          title="No orders yet"
+          description="When you place your first order, you'll see it here."
+          action={
+            <Link to="/catalog">
+              <Button variant="secondary">Start shopping</Button>
+            </Link>
+          }
+        />
       )}
 
       <div className="flex flex-col gap-3">

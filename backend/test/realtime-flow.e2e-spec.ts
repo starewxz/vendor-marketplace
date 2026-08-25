@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call -- socket/supertest payloads */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- socket/supertest payloads */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
@@ -63,7 +63,11 @@ describe('Realtime Outbox -> Socket.IO delivery (e2e)', () => {
     app.useWebSocketAdapter(socketAdapter);
     await app.listen(0, '127.0.0.1');
     expect(socketAdapter.isRedisAdapterInstalled()).toBe(true);
-    const address = app.getHttpServer().address() as { port: number };
+    const address = (
+      app.getHttpServer() as import('http').Server
+    ).address() as {
+      port: number;
+    };
     baseUrl = `http://127.0.0.1:${address.port}`;
     users = moduleRef.get(UsersService);
     jwt = moduleRef.get(JwtService);
@@ -122,7 +126,7 @@ describe('Realtime Outbox -> Socket.IO delivery (e2e)', () => {
 
   afterAll(async () => {
     for (const socket of sockets) socket.disconnect();
-    await app.close();
+    if (app) await app.close();
   });
 
   async function account(role: UserRole, label: string): Promise<Account> {
