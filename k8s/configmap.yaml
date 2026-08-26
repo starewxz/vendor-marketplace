@@ -1,0 +1,49 @@
+# Non-secret configuration only — matches the env var names actually read by
+# backend/src/common/config/configuration.ts and docker-compose.yml. Secrets
+# (DB/JWT/API keys/passwords) live in a Secret instead — see secret.example.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marketplace-config
+  namespace: marketplace
+data:
+  NODE_ENV: 'production'
+  BACKEND_PORT: '3000'
+  API_PREFIX: 'api'
+  # Overridden by whatever URL you actually expose the frontend on (port-
+  # forward or Ingress host) — only affects CORS origin checking and OAuth
+  # callback links, not same-origin /api calls made through the frontend's
+  # own nginx proxy.
+  FRONTEND_URL: 'http://localhost:8080'
+
+  REDIS_URL: 'redis://redis:6379'
+
+  MEILISEARCH_URL: 'http://meilisearch:7700'
+  MEILI_ENV: 'development'
+  MEILI_NO_ANALYTICS: 'true'
+
+  POSTGRES_HOST: 'postgres'
+  POSTGRES_PORT: '5432'
+  POSTGRES_DB: 'marketplace'
+  POSTGRES_USER: 'marketplace'
+
+  JWT_ACCESS_EXPIRES_IN: '15m'
+  JWT_REFRESH_EXPIRES_IN: '7d'
+
+  RATE_LIMIT_TTL_SECONDS: '60'
+  RATE_LIMIT_MAX_REQUESTS: '100'
+
+  LOG_LEVEL: 'info'
+  AUCTION_PURCHASE_WINDOW_MINUTES: '30'
+
+  # Not a credential — safe to keep alongside the other non-secret config.
+  # Leave blank (default) to keep Google OAuth cleanly disabled, same as
+  # local dev; the app boots fine either way (see README "Google OAuth").
+  GOOGLE_OAUTH_CALLBACK_URL: 'http://localhost:8080/api/auth/google/callback'
+
+  # Used only by `npm run seed:admin` / `seed:demo` Jobs (see
+  # backend/seed-admin-job.yaml, seed-demo-job.yaml) — never run
+  # automatically. Not secret: an email address and a display name.
+  ADMIN_EMAIL: 'admin@example.com'
+  ADMIN_NAME: 'Admin'
+  DEMO_SELLER_EMAIL: 'demo-seller@example.com'

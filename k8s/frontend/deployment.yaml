@@ -1,0 +1,53 @@
+# VITE_API_URL/VITE_SOCKET_URL are Vite BUILD-TIME variables baked into the
+# static bundle — a runtime ConfigMap can't change them after the fact. The
+# image used here (marketplace-frontend:local) must be built with
+# VITE_API_URL=/api (and VITE_SOCKET_URL left unset) so the bundle calls
+# same-origin /api and /socket.io, which nginx.conf then reverse-proxies to
+# the backend Service — see README "Kubernetes deployment" for the exact
+# build command. This is a DIFFERENT image tag/build args than the
+# docker-compose frontend image, which keeps using absolute localhost URLs;
+# docker-compose.yml itself is untouched.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: marketplace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: marketplace-frontend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi

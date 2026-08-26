@@ -1,0 +1,46 @@
+# Optional — requires an Ingress controller (e.g. ingress-nginx) installed
+# in the cluster; kind does not ship one by default. For local kind
+# verification without a controller, use kubectl port-forward instead (see
+# README "Kubernetes deployment"). Where no Ingress controller/DNS is
+# available, the frontend's own nginx still proxies /api and /socket.io
+# to the backend Service directly (see frontend/nginx.conf), so
+# port-forwarding just the frontend Service alone is sufficient either way.
+#
+# proxy-read/send-timeout raised because ingress-nginx's 60s default would
+# otherwise kill idle Socket.IO connections; no other WebSocket-specific
+# annotations are needed — ingress-nginx passes Upgrade/Connection headers
+# through by default.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: marketplace
+  namespace: marketplace
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3000
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

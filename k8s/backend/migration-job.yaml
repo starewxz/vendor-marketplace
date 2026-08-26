@@ -1,0 +1,45 @@
+# Runs migrations exactly once, explicitly — not on every backend pod
+# startup (which would have all replicas racing to run them). Uses the
+# project's actual production migration command against the compiled
+# dist/ output (see backend/package.json "migration:run:prod").
+#
+# Kustomize applies this alongside the backend Deployment with no ordering
+# guarantee, so run/wait for it explicitly rather than assuming it finished
+# first — see README "Deployment order":
+#   kubectl apply -k k8s/
+#   kubectl wait --for=condition=complete job/backend-migration -n marketplace --timeout=180s
+#   kubectl rollout restart deployment/backend -n marketplace   # only needed if backend pods started before migrations finished
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backend-migration
+  namespace: marketplace
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      # Postgres commonly isn't Ready yet when Kustomize creates everything
+      # at once (confirmed against a real kind cluster) — wait for it
+      # explicitly instead of burning through backoffLimit on immediate
+      # connection failures.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - until pg_isready -h postgres -p 5432 -U "$POSTGRES_USER"; do echo waiting for postgres; sleep 2; done
+          envFrom:
+            - configMapRef:
+                name: marketplace-config
+      containers:
+        - name: migrate
+          image: marketplace-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ['npm', 'run', 'migration:run:prod']
+          envFrom:
+            - configMapRef:
+                name: marketplace-config
+            - secretRef:
+                name: marketplace-secrets

@@ -1,0 +1,31 @@
+# Apply with: kubectl apply -k k8s/
+#
+# secret.yaml is NOT committed (gitignored) — copy it from
+# secret.example.yaml and fill in real local values first:
+#   cp k8s/secret.example.yaml k8s/secret.yaml
+#
+# seed-admin-job.yaml / seed-demo-job.yaml are deliberately NOT listed here
+# — they're optional, manually-applied Jobs (see README "Admin / demo seed").
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: marketplace
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres/pvc.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - meilisearch/pvc.yaml
+  - meilisearch/deployment.yaml
+  - meilisearch/service.yaml
+  - backend/migration-job.yaml
+  - backend/deployment.yaml
+  - backend/service.yaml
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - ingress.yaml

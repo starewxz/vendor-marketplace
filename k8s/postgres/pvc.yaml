@@ -1,0 +1,13 @@
+# kind/local storage only — not a production durability guarantee. See
+# README "Kubernetes deployment" for the same caveat on Meilisearch's PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: marketplace
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

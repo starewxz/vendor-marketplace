@@ -1,0 +1,61 @@
+# 2 replicas by default — the app already supports this via the Socket.IO
+# Redis adapter (see backend/src/websocket/redis-io.adapter.ts) and shares
+# Postgres/Redis/Meilisearch across replicas, no sticky sessions needed.
+# See README "Kubernetes deployment" for the multi-replica verification.
+#
+# envFrom bulk-imports the whole ConfigMap + Secret, same as docker-compose's
+# `env_file: .env` does today — a few keys meant only for other
+# workloads (e.g. POSTGRES_USER, ADMIN_PASSWORD) end up as unused env vars
+# here too, which is harmless and matches the existing project convention
+# rather than introducing a new one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: marketplace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # Migrations are a separate Job (see migration-job.yaml) that must
+      # complete before this rolls out — see README "Deployment order".
+      containers:
+        - name: backend
+          image: marketplace-backend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: marketplace-config
+            - secretRef:
+                name: marketplace-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

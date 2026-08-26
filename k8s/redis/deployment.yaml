@@ -1,0 +1,45 @@
+# No password (matches docker-compose / .env.example REDIS_PASSWORD=<empty>)
+# and no PVC — Redis here backs caching, BullMQ queues, and the Socket.IO
+# adapter's pub/sub, none of which need to survive a pod restart for this
+# project's purposes. No Cluster/Sentinel — single instance, same as compose.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: marketplace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ['redis-cli', 'ping']
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command: ['redis-cli', 'ping']
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

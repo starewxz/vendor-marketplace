@@ -1,0 +1,34 @@
+# Optional, manual only — NOT included in kustomization.yaml. Mirrors
+# `npm run seed:demo` (see README "Product data / images"): idempotent,
+# self-bootstraps a demo seller + categories + ~42 catalog products.
+# Run after seed-admin and after the backend is up (it talks to Postgres
+# directly, same as the other Jobs, but re-uses the same demo-seller
+# creation flow either way).
+#
+#   kubectl delete job/seed-demo -n marketplace --ignore-not-found
+#   kubectl apply -f k8s/backend/seed-demo-job.yaml
+#   kubectl logs -n marketplace job/seed-demo
+#
+# Search sync happens asynchronously through the normal outbox pipeline
+# once the backend Deployment is running — no separate reindex step needed
+# unless you're seeding before the backend has ever started.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-demo
+  namespace: marketplace
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed-demo
+          image: marketplace-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ['npm', 'run', 'seed:demo:prod']
+          envFrom:
+            - configMapRef:
+                name: marketplace-config
+            - secretRef:
+                name: marketplace-secrets

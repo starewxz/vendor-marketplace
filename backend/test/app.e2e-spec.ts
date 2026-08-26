@@ -35,6 +35,15 @@ describe('AppModule (e2e)', () => {
       });
   });
 
+  it('/api/health/live (GET) reports process liveness without checking dependencies', () => {
+    return request(app.getHttpServer())
+      .get('/api/health/live')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toEqual({ status: 'ok' });
+      });
+  });
+
   afterEach(async () => {
     if (app) await app.close();
   });

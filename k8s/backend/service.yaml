@@ -1,0 +1,15 @@
+# ClusterIP in front of all backend replicas — kube-proxy load-balances
+# both REST and WebSocket upgrade requests across them; correctness across
+# replicas comes from shared Postgres/Redis/Meilisearch + the Socket.IO
+# Redis adapter, not from routing every client to the same pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: marketplace
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 3000
+      targetPort: 3000

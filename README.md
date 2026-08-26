@@ -24,6 +24,7 @@ out of scope.
 - [Project structure](#project-structure)
 - [Development setup](#development-setup)
 - [Docker setup](#docker-setup)
+- [Kubernetes deployment (optional)](#kubernetes-deployment-optional)
 - [Environment variables](#environment-variables)
 - [Current implementation status](#current-implementation-status)
 - [Observability](#observability)
@@ -639,6 +640,144 @@ Postgres data lives in a named volume (`postgres_data`) and survives `docker com
 Migrations are **not** run automatically on container start — they're an explicit step (`migration:run:prod`, which
 runs against the compiled `dist/` output so the runtime image doesn't need dev dependencies or `ts-node`). This
 keeps schema changes deliberate rather than something that silently happens on every deploy.
+
+## Kubernetes deployment (optional)
+
+An **optional bonus deployment target** alongside — not a replacement for — the docker-compose setup above, which
+remains the primary/simplest way to run this project. Lives entirely under [`k8s/`](k8s/), reuses the exact same
+`backend/Dockerfile` / `frontend/Dockerfile` as Docker Compose, and requires no Helm.
+
+### Architecture
+
+```text
+Ingress (optional, needs a controller)      or plain `kubectl port-forward` for local kind use
+        ↓
+ /api, /socket.io → backend Service          /  →  frontend Service
+        ↓                                            ↓
+ backend Deployment (2 replicas)             frontend Deployment (2 replicas, nginx)
+        ↓                                            ↓
+ shared Postgres (StatefulSet) / Redis (Deployment) / Meilisearch (Deployment)
+```
+
+Backend replicas share Postgres/Redis/Meilisearch exactly as in Docker Compose, and coordinate realtime delivery
+through the same Socket.IO Redis adapter (`backend/src/websocket/redis-io.adapter.ts`) — no sticky sessions, no
+code changes. This was verified against a real 2-replica rollout in a local kind cluster, not just asserted; see
+"Verified results" below.
+
+### Prerequisites
+
+Docker, `kubectl`, and [`kind`](https://kind.sigs.k8s.io/).
+
+### ConfigMap / Secret strategy
+
+Every env var is mapped 1:1 to what `backend/src/common/config/configuration.ts` / `env.validation.ts` actually
+read — nothing guessed. Non-secret values (`NODE_ENV`, ports, service hostnames, JWT expiry durations, rate-limit
+numbers, etc.) live in `k8s/configmap.yaml`. Credential-shaped values (`DATABASE_URL`, `POSTGRES_PASSWORD`,
+`MEILISEARCH_API_KEY`, `JWT_*_SECRET`, Google OAuth credentials, seed passwords) are **not** committed — only a
+`k8s/secret.example.yaml` template is. Create the real one locally (gitignored):
+
+```bash
+cp k8s/secret.example.yaml k8s/secret.yaml   # edit with real local values
+kubectl apply -f k8s/secret.yaml
+```
+
+### A real config bug this exposed and fixed
+
+Vite's `VITE_API_URL`/`VITE_SOCKET_URL` are **build-time** values baked into the static bundle — a runtime
+ConfigMap can't retroactively change them. Kubernetes' architecture (no fixed `localhost:3000`, potentially no
+Ingress/DNS at all for local kind use) is a better fit for a **relative** `VITE_API_URL=/api`, so the bundle isn't
+tied to one environment's hostname — same-origin requests go through the frontend's own nginx, which now proxies
+`/api` and `/socket.io` to the backend Service (`frontend/nginx.conf`; inert in the Docker Compose build, which
+still bakes an absolute URL and never hits these routes — `docker-compose.yml` itself is unchanged).
+
+Wiring this up surfaced a genuine bug in `frontend/src/config/env.ts`: deriving `socketUrl` from a relative
+`VITE_API_URL` by stripping `/api` produced an **empty string**, and unlike `undefined`, socket.io-client's URL
+parser does not treat `""` as "use the current page origin" — it tries to parse it as a hostname and breaks. Fixed
+with `|| undefined` so the relative-URL case falls back to socket.io-client's own same-origin default, same as the
+absolute-URL case already worked. Covered by the existing frontend test suite; this is exactly the kind of
+"real configuration issue Kubernetes compatibility exposes" worth fixing, not a business-logic change.
+
+### Health probes
+
+`GET /api/health` (Postgres/Redis/Meilisearch-aware) is used for **readiness** only. A liveness probe must never
+depend on downstream services — a transient Meilisearch blip would otherwise make the kubelet kill an otherwise-
+healthy process — so a new, minimal `GET /api/health/live` (process-alive only, no dependency calls) was added for
+**liveness**. Both are covered by `backend/test/app.e2e-spec.ts`.
+
+### Migrations
+
+A dedicated `k8s/backend/migration-job.yaml` Job runs `npm run migration:run:prod` once, explicitly — not on every
+backend pod startup (which would have all replicas racing). It includes a `wait-for-postgres` initContainer:
+Kustomize applies everything simultaneously with no ordering guarantee, and in real testing the Job's first attempt
+failed outright (`backoffLimit` exhausted) because Postgres wasn't ready yet when it started. The initContainer
+fixed that; see "Verified results" for the before/after.
+
+### Admin / demo seed (manual only)
+
+`k8s/backend/seed-admin-job.yaml` / `seed-demo-job.yaml` mirror `npm run seed:admin` / `seed:demo` exactly.
+Deliberately **not** in `kustomization.yaml` — they only run when explicitly applied:
+
+```bash
+kubectl apply -f k8s/backend/seed-admin-job.yaml
+kubectl logs -n marketplace job/seed-admin
+```
+
+### Local kind workflow
+
+```bash
+kind create cluster --name marketplace
+
+docker build -t marketplace-backend:local ./backend
+docker build -t marketplace-frontend:local --build-arg VITE_API_URL=/api ./frontend
+
+kind load docker-image marketplace-backend:local --name marketplace
+kind load docker-image marketplace-frontend:local --name marketplace
+
+cp k8s/secret.example.yaml k8s/secret.yaml   # edit with real local values first
+kubectl apply -k k8s/
+
+kubectl wait --for=condition=complete job/backend-migration -n marketplace --timeout=180s
+kubectl rollout restart deployment/backend -n marketplace   # only needed if backend pods started before migrations finished
+
+kubectl get pods -n marketplace
+kubectl port-forward -n marketplace svc/frontend 8080:80 &
+kubectl port-forward -n marketplace svc/backend 3000:3000 &
+```
+
+No Ingress controller ships with kind by default — for local verification, port-forward is enough (the frontend's
+own nginx proxy makes `/api` and `/socket.io` work correctly even without one). If you do install `ingress-nginx`,
+`k8s/ingress.yaml` routes `/api` + `/socket.io` → backend, `/` → frontend, with extended proxy timeouts so
+long-lived Socket.IO connections survive.
+
+Cleanup: `kind delete cluster --name marketplace`.
+
+### Verified results (this was actually run against a live kind cluster, not just written)
+
+- `kubectl apply --dry-run=client -k k8s/` and `kubectl kustomize k8s/`: clean, all 17 resources render/validate.
+- Fresh kind cluster, both images built from the real Dockerfiles and `kind load`ed: **all workloads reached
+  healthy/ready** — `backend` 2/2, `frontend` 2/2, `redis` 1/1, `meilisearch` 1/1, `postgres` StatefulSet 1/1,
+  `backend-migration` Job Complete, both PVCs `Bound`.
+- **Found and fixed live**: the migration Job's first run failed (`backoffLimit` exhausted before Postgres was
+  ready) — added the `wait-for-postgres` initContainer described above; re-run succeeded immediately.
+- Functional: frontend loads (200), `/api/health` (200, all 3 deps up) and `/api/docs` and `/api/metrics` all
+  reachable both directly and through the frontend's same-origin `/api` proxy, a real `POST /api/auth/register`
+  succeeded end-to-end through the cluster, `seed-admin` Job ran and produced a working login.
+- **Multi-replica**: 20 requests against the `backend` Service (not port-forward, which pins to one pod — a real
+  in-cluster client) landed on both pods (16/29 split via kube-proxy). A real checkout mutation and its resulting
+  `product.stock.updated` Socket.IO event were traced by correlation ID across **both** backend pods' logs (one
+  pod handled the HTTP request and search-sync, the other published the outbox event and emitted a realtime
+  event) — a socket client connected through the frontend proxy still received the event either way, confirming
+  the Redis adapter fans events out correctly regardless of which replica's worker processes the job. Reproducible
+  via `load-tests/k8s-realtime-check.mjs` (requires the `seed-admin` Job to have run first).
+- Ingress (structural only — no controller installed in kind): `kubectl describe ingress` correctly lists both
+  backend pod endpoints and both frontend pod endpoints for their respective paths.
+
+### Kubernetes limitations (deliberately not addressed — see "Do not overbuild")
+
+No Helm chart, no service mesh, no cert-manager/TLS, no Prometheus Operator, no Postgres/Redis HA clustering, no
+autoscaling (HPA), no NetworkPolicies, no resource quotas beyond per-container requests/limits. kind's local
+storage (used for the Postgres/Meilisearch PVCs) is development/testing-only, not a production durability
+guarantee. This is a technical-assignment bonus deployment target, not a production Kubernetes platform.
 
 ## Environment variables
 

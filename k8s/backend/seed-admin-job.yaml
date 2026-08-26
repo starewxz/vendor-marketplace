@@ -1,0 +1,28 @@
+# Optional, manual only — NOT included in kustomization.yaml, so it never
+# runs as part of a normal `kubectl apply -k k8s/`. Mirrors `npm run
+# seed:admin` (see README "Admin bootstrap"): idempotent identity-wise,
+# syncs role/name/password to the current ADMIN_* config on every run.
+#
+#   kubectl delete job/seed-admin -n marketplace --ignore-not-found
+#   kubectl apply -f k8s/backend/seed-admin-job.yaml
+#   kubectl logs -n marketplace job/seed-admin
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-admin
+  namespace: marketplace
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed-admin
+          image: marketplace-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ['npm', 'run', 'seed:admin:prod']
+          envFrom:
+            - configMapRef:
+                name: marketplace-config
+            - secretRef:
+                name: marketplace-secrets

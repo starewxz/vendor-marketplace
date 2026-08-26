@@ -41,6 +41,20 @@ export class HealthController {
     ]);
   }
 
+  /**
+   * Process-liveness only — no Postgres/Redis/Meilisearch calls. Deliberately
+   * separate from `check()` above: a Kubernetes livenessProbe must never
+   * depend on downstream services, or a transient Meilisearch/Redis blip
+   * would make the kubelet kill and restart an otherwise-healthy Nest
+   * process. Use this for livenessProbe and `check()` (GET /health) for
+   * readinessProbe.
+   */
+  @Public()
+  @Get('live')
+  live(): { status: 'ok' } {
+    return { status: 'ok' };
+  }
+
   private async pingRedis(): Promise<HealthIndicatorResult> {
     try {
       await this.redis.ping();
