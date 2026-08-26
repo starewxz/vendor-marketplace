@@ -18,6 +18,7 @@ out of scope.
 - [Cart, checkout & orders (Stage 4)](#cart-checkout--orders-stage-4)
 - [Seller order lifecycle, cancellation & refunds (Stage 5)](#seller-order-lifecycle-cancellation--refunds-stage-5)
 - [Realtime protocol (Stage 7)](#realtime-protocol-stage-7)
+- [Dead-letter queue & replay](#dead-letter-queue--replay)
 - [Reviews, disputes, and analytics (Stage 8)](#reviews-disputes-and-analytics-stage-8)
 - [Frontend integration (Stage 9)](#frontend-integration-stage-9)
 - [Project structure](#project-structure)
@@ -928,6 +929,90 @@ queries, refetching REST state before continuing live updates. Duplicate message
 timestamps prevent an older stock/auction event from overwriting newer cached state. If Redis or WebSockets are down,
 all REST flows continue working; the auction view retains a low-frequency REST fallback.
 
+### Multi-instance verification (actual test, not just architecture)
+
+The claim above — that the Redis Socket.IO adapter fans events out across replicas, not just within one process —
+was verified against two genuinely separate backend containers, not two clients on the same process:
+
+```bash
+ln -s ../backend/node_modules load-tests/node_modules   # one-time: lets the script resolve socket.io-client
+docker compose -f docker-compose.yml -f docker-compose.multi-instance.yml up -d   # backend :3000, backend-b :3001
+node load-tests/multi-instance-realtime-check.mjs
+```
+
+`docker-compose.multi-instance.yml` is an optional override (not part of the normal `docker compose up` path) that
+adds a second backend replica sharing the same Postgres/Redis/Meilisearch as the primary one.
+
+**Last run result** (4 socket connections, 2 mutations, 2 events received, 0 misses, 0 duplicates):
+
+- `product.stock.updated`: stock mutated via instance A (checkout) → received by a client connected to instance B. PASS.
+- `auction.bid.updated`: bid placed via instance B → received by a client connected to instance A. PASS.
+- Private-room authorization: the owning customer's `subscribe:order` (via instance A) succeeded; a different
+  customer's `subscribe:order` for the same order (via instance B) was correctly rejected — the buyerId check is a
+  plain Postgres query, so it's inherently instance-agnostic; this confirms going through a different replica than
+  the "origin" of the data doesn't weaken it. PASS.
+- **Instance failure**: stopping `backend-b` (`docker compose -f docker-compose.yml -f docker-compose.multi-instance.yml stop backend-b`)
+  left instance A serving `/api/health` (200) and accepting new socket connections normally; `backend-b` simply
+  became unreachable. There is no load balancer in this setup, so this is exactly what was tested — not a claim of
+  automatic failover/high availability, just confirmation that one replica's failure doesn't affect the other's
+  ability to serve new REST/WebSocket traffic (`load-tests/instance-failure-check.mjs`).
+
+Tear down the second replica when done: `docker compose -f docker-compose.yml -f docker-compose.multi-instance.yml down backend-b`.
+
+## Dead-letter queue & replay
+
+Every consumer queue (`search-sync`, `seller-order-processing`, `notifications`, `realtime`, `auction-finalization`)
+already retries a failing job (5 attempts, exponential backoff — see `outbox-publisher.service.ts` / auction
+finalization's own job options). Retrying isn't the gap this closes: what happens once retries are **exhausted**?
+Previously: nothing — the job just sat in Redis's `failed` set until `removeOnFail` eventually pruned it, invisible
+outside the logs and gone entirely on a Redis restart.
+
+**Detection.** `DeadLetterListenerService` is a standalone `QueueEvents`-based listener (not a change to any of the
+5 processors) subscribed to all five queues. BullMQ's worker `failed` event fires on *every* failed attempt,
+including ones that will still retry — the listener distinguishes "exhausted" from "will retry again" via
+`job.finishedOn` (only set once BullMQ has decided there's no more retry to schedule), not just attempt count.
+
+**Persistence.** An exhausted job becomes a `DeadLetterEvent` row (Postgres, not Redis — survives a Redis restart)
+recording the original queue, job id, outbox event id (when applicable), event type, aggregate, the original
+payload (same non-secret ids/amounts/statuses already written to `OutboxEvent.payload` elsewhere — never
+credentials), attempts made, failure reason, correlation id, and a status (`PENDING` → `REPLAYING` →
+`REPLAYED`/`REPLAY_FAILED`). A unique `(originalQueue, jobId)` index makes recording idempotent.
+
+**Observability.**
+
+```bash
+npm run dlq:list                 # every dead-letter entry, most recent first
+npm run dlq:list -- PENDING      # filter by status
+npm run dlq:replay -- <id>       # re-enqueue one
+```
+
+Metrics: `queue_dead_letter_total`, `queue_replay_total`, `queue_replay_succeeded_total`,
+`queue_replay_failures_total`. Structured logs at every stage (retries exhausted → dead-letter created, replay
+started/succeeded/failed) include queue, jobId, eventId, correlationId, attemptsMade.
+
+**Replay is idempotent by construction, not by trick.** `DeadLetterService.replay()` re-enqueues the original
+payload under a fresh jobId (so replaying twice is never rejected as a duplicate job) — the guarantee that this
+never double-applies a business effect comes from the exact same `ProcessedEvent` check every consumer already runs
+before doing anything (see "Idempotent event consumers" above), not from anything DLQ-specific. A dead-lettered job
+by definition never reached that success path, so the first replay runs it for real; a second replay of an
+already-succeeded entry hits the `ProcessedEvent` short-circuit and is a safe no-op. The listener also watches for a
+replayed job's own `completed`/`failed` event (correlated by `(queue, outboxEventId)`, not by parsing the replay
+jobId) to move the entry to `REPLAYED` or back to `REPLAY_FAILED` rather than leaving it stuck in `REPLAYING`.
+
+**Compensation policy** (deliberately not a generic saga framework — the project doesn't need one; see "Why these
+choices"): a permanently failed *projection* (search index, notification, realtime broadcast) never rolls back the
+already-committed domain transaction that produced it. The order/stock/ledger state in Postgres is correct and
+authoritative regardless of whether the search index or a notification caught up yet — that's the entire point of
+the outbox pattern's eventual consistency. Dead-lettering + replay is the recovery mechanism for those async
+projections; it is intentionally *not* wired to `orders`/`checkout`/`refunds`' own financial transactions, which
+already get their correctness from a single DB transaction, not from queue retries.
+
+**Tested against real BullMQ/Redis** (`backend/test/dead-letter-flow.e2e-spec.ts`, not mocks): a genuinely failing
+job (only the Meilisearch boundary is stubbed; the queue/worker/retry/backoff/dead-letter persistence are all real)
+exhausts a small test-only retry budget → exactly one dead-letter row is created → replaying it after the stub stops
+failing processes successfully exactly once (`ProcessedEvent` row created, dead-letter marked `REPLAYED`) →
+replaying the same entry again does not create a second `ProcessedEvent` row or call the search index again.
+
 ## Reviews, disputes, and analytics (Stage 8)
 
 - Reviews are anchored to a `SellerOrderItem`, not merely a product id. The API verifies that the authenticated
@@ -1087,24 +1172,27 @@ documents a real throttling bug found and fixed while calibrating this test (see
 
 ## Known limitations & what would be improved with more time
 
-- **Multi-instance realtime fan-out**: the Socket.IO Redis adapter is wired up (so events fan out correctly across
-  multiple backend instances), but this hasn't been load-tested with more than one backend replica running
-  simultaneously.
-- **Metrics are per-process, not aggregated**: `MetricsRegistryService` is an in-memory counter/histogram registry,
-  fine for a single instance or this stage's purpose, but a real multi-instance deployment would want each
-  instance's `/metrics` scraped independently by Prometheus (standard practice) rather than expecting one endpoint
-  to reflect fleet-wide totals.
+- **Metrics are per-process, not aggregated**: `MetricsRegistryService` is an in-memory counter/histogram registry —
+  confirmed fine for genuine multi-instance use (see "Multi-instance verification"), but each instance's `/metrics`
+  reflects only that instance's own activity; a real multi-instance deployment would scrape each instance
+  independently by Prometheus (standard practice) rather than expecting one endpoint to reflect fleet-wide totals.
 - **Notification delivery is log-only**: `NotificationsService.notify()` currently logs a structured message per
   recipient (real consumer, real recipient-resolution logic, real dedup — see "Async SellerOrder processing" and
   the outbox routing table) but doesn't yet persist an in-app notification record or send an email/push. Swapping
-  in a real channel only touches that one class.
+  in a real channel only touches that one class. A permanently-failed notification now dead-letters like any other
+  queue job (see "Dead-letter queue & replay") rather than disappearing.
 - **No distributed load-testing rig**: the load test (see `docs/load-test-report.md`) ran from a single machine
   against a single-instance local Docker stack; a proper multi-origin load-testing setup would exercise the
   bid-placement throttle and the concurrency logic simultaneously without needing a temporary throttle-config
-  override for the test window.
-- **Given more time**: add a saga-style compensation step for the rare case where an outbox event's async
-  consumer permanently fails after exhausting BullMQ retries (currently: visible via `queue_jobs_failed_total` and
-  logs, but no automatic alerting/dead-letter replay UI); expand Storybook coverage beyond the `components/ui`
+  override for the test window. The multi-instance realtime check is similarly a small functional verification
+  (4 connections, 2 events), not a load test — see "Multi-instance verification" for what was and wasn't measured.
+- **No load balancer in front of multiple backend instances**: the multi-instance setup (`docker-compose.multi-instance.yml`)
+  proves the Redis Socket.IO adapter and shared BullMQ/Postgres/Meilisearch work correctly across replicas, and that
+  one replica's failure doesn't affect the other's ability to serve new traffic — but there's no reverse proxy/LB in
+  front of them, so this isn't a claim of automatic failover or high availability, just of correct shared-state
+  behavior across independent processes.
+- **Given more time**: replay currently must be triggered manually (`npm run dlq:replay`) rather than on an
+  automatic schedule/alert; expand Storybook coverage beyond the `components/ui`
   primitives to the composite feature components (auction panel, cart, seller product form); add label support to
   the metrics registry (or migrate to `prom-client`) so per-queue/per-route breakdowns are queryable instead of
   only aggregate totals.

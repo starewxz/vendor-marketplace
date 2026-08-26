@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import type { HealthCheckResult } from '@nestjs/terminus';
 import { Request, Response } from 'express';
 
 interface ErrorResponseBody {
@@ -18,9 +19,33 @@ interface ErrorResponseBody {
 }
 
 /**
+ * Terminus (`HealthCheckService.check()`) throws `ServiceUnavailableException`
+ * with the full `{ status, info, error, details }` result object as the raw
+ * exception response — not a `{ message }` string like a normal HttpException.
+ * Detecting that shape structurally (rather than matching on the `/health`
+ * route) means this survives the health endpoint moving, while a plain
+ * `throw new ServiceUnavailableException('...')` elsewhere in the app — whose
+ * response is the standard Nest `{ statusCode, message, error }` shape and
+ * has no `details` key — still goes through the normal standardized format
+ * below.
+ */
+function isTerminusHealthCheckResult(
+  value: unknown,
+): value is HealthCheckResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { status?: unknown }).status === 'string' &&
+    typeof (value as { details?: unknown }).details === 'object'
+  );
+}
+
+/**
  * Normalizes every thrown error (HttpException or otherwise) into a single
  * predictable JSON shape, and always echoes the correlation ID so clients and
- * logs can be cross-referenced.
+ * logs can be cross-referenced. The one deliberate exception is Terminus'
+ * own health-check payload (see `isTerminusHealthCheckResult`), which is
+ * preserved verbatim so /health failures keep their per-component detail.
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -37,6 +62,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse = isHttpException ? exception.getResponse() : null;
+
+    if (statusCode >= 500) {
+      this.logger.error(
+        `[${request.correlationId}] ${request.method} ${request.url} -> ${statusCode}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    }
+
+    if (isTerminusHealthCheckResult(exceptionResponse)) {
+      response.status(statusCode).json(exceptionResponse);
+      return;
+    }
+
     const message = this.extractMessage(exceptionResponse, exception);
     const error = isHttpException ? exception.name : 'InternalServerError';
 
@@ -48,13 +86,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       correlationId: request.correlationId,
       timestamp: new Date().toISOString(),
     };
-
-    if (statusCode >= 500) {
-      this.logger.error(
-        `[${request.correlationId}] ${request.method} ${request.url} -> ${statusCode}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
-    }
 
     response.status(statusCode).json(body);
   }

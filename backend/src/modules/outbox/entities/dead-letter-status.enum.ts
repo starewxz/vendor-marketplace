@@ -1,0 +1,6 @@
+export enum DeadLetterStatus {
+  PENDING = 'PENDING',
+  REPLAYING = 'REPLAYING',
+  REPLAYED = 'REPLAYED',
+  REPLAY_FAILED = 'REPLAY_FAILED',
+}

@@ -36,3 +36,7 @@ Thumbs.db
 # Load test generated artifacts (contain live tokens / raw run output)
 load-tests/.load-test-env.json
 load-tests/load-test-result.json
+
+# One-time local symlink to backend/node_modules so multi-instance-realtime-check.mjs
+# can resolve socket.io-client — see README "Multi-instance verification"
+load-tests/node_modules

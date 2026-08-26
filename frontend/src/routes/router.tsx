@@ -1,3 +1,5 @@
+import { lazy } from 'react';
+import type { ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { CustomerLayout } from '../layouts/CustomerLayout';
 import { SellerLayout } from '../layouts/SellerLayout';
@@ -18,26 +20,91 @@ import { LoginPage } from '../pages/customer/LoginPage';
 import { RegisterPage } from '../pages/customer/RegisterPage';
 import { AuthCallbackPage } from '../pages/customer/AuthCallbackPage';
 
-import { SellerOverviewPage } from '../pages/seller/SellerOverviewPage';
-import { SellerProductsPage } from '../pages/seller/SellerProductsPage';
-import { SellerOrdersPage } from '../pages/seller/SellerOrdersPage';
-import { SellerOrderDetailPage } from '../pages/seller/SellerOrderDetailPage';
-import { SellerAuctionsPage } from '../pages/seller/SellerAuctionsPage';
-import { SellerAuctionDetailPage } from '../pages/seller/SellerAuctionDetailPage';
-import { SellerDisputesPage } from '../pages/seller/SellerDisputesPage';
-
-import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
-import { AdminSellersPage } from '../pages/admin/AdminSellersPage';
-import { AdminCategoriesPage } from '../pages/admin/AdminCategoriesPage';
-import { AdminOrdersPage } from '../pages/admin/AdminOrdersPage';
-import { AdminOrderDetailPage } from '../pages/admin/AdminOrderDetailPage';
-import { AdminDisputesPage } from '../pages/admin/AdminDisputesPage';
-import { AdminAnalyticsPage } from '../pages/admin/AdminAnalyticsPage';
-import { AdminAuctionsPage } from '../pages/admin/AdminAuctionsPage';
-import { AdminAuctionDetailPage } from '../pages/admin/AdminAuctionDetailPage';
-
 import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+
+/**
+ * Seller/admin dashboard pages are only ever reached behind their role
+ * gate (ProtectedRoute + DashboardShell), so a plain customer never pays
+ * for their code. `lazyNamed` just adapts this codebase's named exports
+ * to what `React.lazy` expects (a module with a `default` export).
+ * DashboardShell wraps the shared <Outlet /> in one <Suspense>, so this
+ * is the only place that needs to change to cover both sections.
+ */
+function lazyNamed<T extends ComponentType>(
+  factory: () => Promise<Record<string, T>>,
+  exportName: string,
+) {
+  return lazy(() =>
+    factory().then((module) => ({ default: module[exportName] })),
+  );
+}
+
+const SellerOverviewPage = lazyNamed(
+  () => import('../pages/seller/SellerOverviewPage'),
+  'SellerOverviewPage',
+);
+const SellerProductsPage = lazyNamed(
+  () => import('../pages/seller/SellerProductsPage'),
+  'SellerProductsPage',
+);
+const SellerOrdersPage = lazyNamed(
+  () => import('../pages/seller/SellerOrdersPage'),
+  'SellerOrdersPage',
+);
+const SellerOrderDetailPage = lazyNamed(
+  () => import('../pages/seller/SellerOrderDetailPage'),
+  'SellerOrderDetailPage',
+);
+const SellerAuctionsPage = lazyNamed(
+  () => import('../pages/seller/SellerAuctionsPage'),
+  'SellerAuctionsPage',
+);
+const SellerAuctionDetailPage = lazyNamed(
+  () => import('../pages/seller/SellerAuctionDetailPage'),
+  'SellerAuctionDetailPage',
+);
+const SellerDisputesPage = lazyNamed(
+  () => import('../pages/seller/SellerDisputesPage'),
+  'SellerDisputesPage',
+);
+
+const AdminOverviewPage = lazyNamed(
+  () => import('../pages/admin/AdminOverviewPage'),
+  'AdminOverviewPage',
+);
+const AdminSellersPage = lazyNamed(
+  () => import('../pages/admin/AdminSellersPage'),
+  'AdminSellersPage',
+);
+const AdminCategoriesPage = lazyNamed(
+  () => import('../pages/admin/AdminCategoriesPage'),
+  'AdminCategoriesPage',
+);
+const AdminOrdersPage = lazyNamed(
+  () => import('../pages/admin/AdminOrdersPage'),
+  'AdminOrdersPage',
+);
+const AdminOrderDetailPage = lazyNamed(
+  () => import('../pages/admin/AdminOrderDetailPage'),
+  'AdminOrderDetailPage',
+);
+const AdminDisputesPage = lazyNamed(
+  () => import('../pages/admin/AdminDisputesPage'),
+  'AdminDisputesPage',
+);
+const AdminAnalyticsPage = lazyNamed(
+  () => import('../pages/admin/AdminAnalyticsPage'),
+  'AdminAnalyticsPage',
+);
+const AdminAuctionsPage = lazyNamed(
+  () => import('../pages/admin/AdminAuctionsPage'),
+  'AdminAuctionsPage',
+);
+const AdminAuctionDetailPage = lazyNamed(
+  () => import('../pages/admin/AdminAuctionDetailPage'),
+  'AdminAuctionDetailPage',
+);
 
 export const router = createBrowserRouter([
   {

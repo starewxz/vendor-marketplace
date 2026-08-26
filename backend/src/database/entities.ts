@@ -19,6 +19,7 @@ import { Dispute } from '../modules/disputes/entities/dispute.entity';
 import { Refund } from '../modules/refunds/entities/refund.entity';
 import { OutboxEvent } from '../modules/outbox/entities/outbox-event.entity';
 import { ProcessedEvent } from '../modules/outbox/entities/processed-event.entity';
+import { DeadLetterEvent } from '../modules/outbox/entities/dead-letter-event.entity';
 
 /**
  * Single source of truth for the entity list, shared by the runtime
@@ -47,4 +48,5 @@ export const ALL_ENTITIES = [
   Refund,
   OutboxEvent,
   ProcessedEvent,
+  DeadLetterEvent,
 ];

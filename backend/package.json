@@ -29,7 +29,11 @@
     "seed:demo": "ts-node -r tsconfig-paths/register src/scripts/seed-demo-catalog.ts",
     "seed:demo:prod": "node dist/scripts/seed-demo-catalog.js",
     "search:reindex": "ts-node -r tsconfig-paths/register src/scripts/search-reindex.ts",
-    "search:reindex:prod": "node dist/scripts/search-reindex.js"
+    "search:reindex:prod": "node dist/scripts/search-reindex.js",
+    "dlq:list": "ts-node -r tsconfig-paths/register src/scripts/dlq-list.ts",
+    "dlq:list:prod": "node dist/scripts/dlq-list.js",
+    "dlq:replay": "ts-node -r tsconfig-paths/register src/scripts/dlq-replay.ts",
+    "dlq:replay:prod": "node dist/scripts/dlq-replay.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.5",

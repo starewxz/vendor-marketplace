@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Logo } from '../ui/Logo';
 import { Badge } from '../ui/Badge';
+import { Spinner } from '../ui/Spinner';
 import { ConnectionPill } from '../realtime/ConnectionPill';
 
 interface DashboardNavItem {
@@ -50,7 +52,9 @@ export function DashboardShell({ navItems, roleLabel }: DashboardShellProps) {
         <div className="mt-4 hidden lg:block"><ConnectionPill /></div>
       </aside>
       <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 sm:px-6 md:px-10 md:py-8">
-        <Outlet />
+        <Suspense fallback={<Spinner label="Loading…" />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

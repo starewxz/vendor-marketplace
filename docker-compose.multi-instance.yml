@@ -1,0 +1,32 @@
+# Optional override for a local multi-instance realtime check — NOT part of
+# the normal `docker compose up` path (see README "Realtime protocol"). Adds
+# a second backend replica on :3001 sharing the same Postgres/Redis/
+# Meilisearch as the primary `backend` (:3000), to verify the Socket.IO
+# Redis adapter actually propagates events across separate backend
+# processes rather than just within one.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.multi-instance.yml up -d
+#   node load-tests/multi-instance-realtime-check.mjs
+#   docker compose -f docker-compose.yml -f docker-compose.multi-instance.yml down backend-b
+services:
+  backend-b:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-marketplace}:${POSTGRES_PASSWORD:-marketplace}@postgres:5432/${POSTGRES_DB:-marketplace}
+      REDIS_URL: redis://redis:6379
+      MEILISEARCH_URL: http://meilisearch:7700
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - '3001:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
